@@ -1,7 +1,9 @@
+import threading
+
 class Agent:
     """
     Base class for agents in the multi-agent system.
-    Handles agent behavior, communication, memory management, and task execution.
+    Handles agent behavior, communication, memory management, task execution, and fault tolerance.
     """
     
     def __init__(self, agent_id, role, graph_manager):
@@ -34,9 +36,29 @@ class Agent:
         return self.graph_manager.graph.nodes[self.agent_id].get(key, None)
     
     def execute_task(self, task):
-        """Simulate task execution based on agent role."""
-        print(f"{self.agent_id} ({self.role}) is executing: {task}")
-
+        """Execute a task in a separate thread with fault tolerance."""
+        def task_wrapper():
+            try:
+                print(f"{self.agent_id} ({self.role}) is executing: {task}")
+                # Simulated task execution (extend with real logic)
+            except Exception as e:
+                print(f"Error executing task {task} by {self.agent_id}: {e}")
+                self.retry_task(task)
+        
+        task_thread = threading.Thread(target=task_wrapper)
+        task_thread.start()
+    
+    def retry_task(self, task, retries=3):
+        """Retry a failed task up to a specified number of times."""
+        for attempt in range(retries):
+            try:
+                print(f"Retrying {task}, attempt {attempt + 1}...")
+                self.execute_task(task)
+                return
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {e}")
+        print(f"Task {task} failed after {retries} attempts.")
+    
 # Example usage
 if __name__ == "__main__":
     from graph_manager import GraphManager
