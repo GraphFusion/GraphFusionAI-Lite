@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"role": "planner", "id": "Agent1"}, {"role": "executor", "id": "Agent2"}], "links": [{"weight": 1, "relation": "delegates_task", "source": "Agent1", "target": "Agent2"}]}
