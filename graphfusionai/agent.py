@@ -1,7 +1,7 @@
 class Agent:
     """
     Base class for agents in the multi-agent system.
-    Handles agent behavior, communication, and memory management.
+    Handles agent behavior, communication, memory management, and task execution.
     """
     
     def __init__(self, agent_id, role, graph_manager):
@@ -24,6 +24,18 @@ class Agent:
     def recall_memory(self, key):
         """Retrieve information from the agent's local memory."""
         return self.memory.get(key, None)
+    
+    def contribute_to_global_knowledge(self, key, value):
+        """Store information in the shared global knowledge graph."""
+        self.graph_manager.graph.nodes[self.agent_id][key] = value
+
+    def retrieve_global_knowledge(self, key):
+        """Retrieve information from the shared global knowledge graph."""
+        return self.graph_manager.graph.nodes[self.agent_id].get(key, None)
+    
+    def execute_task(self, task):
+        """Simulate task execution based on agent role."""
+        print(f"{self.agent_id} ({self.role}) is executing: {task}")
 
 # Example usage
 if __name__ == "__main__":
@@ -35,3 +47,6 @@ if __name__ == "__main__":
     agent1.communicate("Agent2", "Start execution")
     agent1.store_memory("task", "Optimize pipeline")
     print(agent1.recall_memory("task"))
+    agent1.contribute_to_global_knowledge("strategy", "Divide and conquer")
+    print(agent1.retrieve_global_knowledge("strategy"))
+    agent2.execute_task("Data processing")
