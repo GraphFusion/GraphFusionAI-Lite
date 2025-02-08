@@ -13,8 +13,13 @@ monitor = AgentMonitor()
 fault_tolerance = FaultTolerance()
 
 # Example agent workflow
-def agent_workflow(agent_id, task):
+def agent_workflow(agent_id, task, delegate_to=None):
     monitor.log_activity(agent_id, f"Starting task: {task}")
+    
+    if delegate_to:
+        monitor.log_activity(agent_id, f"Delegating task '{task}' to {delegate_to}")
+        executor.execute_task(delegate_to, task)
+        return
     
     try:
         executor.execute_task(agent_id, task)
@@ -25,6 +30,12 @@ def agent_workflow(agent_id, task):
         fault_tolerance.retry_task(task, agent_id)
         fault_tolerance.recover_agent(agent_id)
 
+# Multi-agent collaboration example
+def collaborative_workflow():
+    agent_workflow("Agent1", "Data preprocessing")
+    agent_workflow("Agent2", "Model training", delegate_to="Agent3")
+    agent_workflow("Agent3", "Model evaluation")
+
 # Run example
 if __name__ == "__main__":
-    agent_workflow("Agent1", "Data processing")
+    collaborative_workflow()
