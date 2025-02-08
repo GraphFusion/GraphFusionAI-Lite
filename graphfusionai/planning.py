@@ -1,6 +1,8 @@
 import heapq
 import time
 import random
+import networkx as nx
+import sqlite3
 
 class Task:
     """Represents a task with priority, complexity, and dependencies."""
@@ -47,9 +49,9 @@ class Agent:
         print(f"Agent {self.agent_id} completed task: {task.description}")
 
 class TaskPlanner:
-    """Handles task allocation and planning strategies."""
+    """Handles task allocation, planning, and persistence."""
     
-    def __init__(self, strategy="priority"):
+    def __init__(self, strategy="priority", db_path="tasks.db"):
         """
         Planning strategies:
         - "fifo": First In, First Out task execution.
@@ -59,18 +61,54 @@ class TaskPlanner:
         self.strategy = strategy
         self.task_queue = []  # Heap queue for priority-based execution
         self.agents = {}  # Maps agent_id -> Agent instance
-    
+        self.task_graph = nx.DiGraph()  # Graph for dependency management
+        self.db_path = db_path
+        self._setup_db()
+
+    def _setup_db(self):
+        """Initialize SQLite database for task logging."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS task_log (
+                task_id TEXT PRIMARY KEY,
+                description TEXT,
+                priority INTEGER,
+                complexity INTEGER,
+                status TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
     def add_agent(self, agent_id, capacity=5):
         """Register a new agent."""
         self.agents[agent_id] = Agent(agent_id, capacity)
     
     def add_task(self, task):
-        """Add a new task based on the chosen planning strategy."""
+        """Add a new task and log it to the database."""
+        self.task_graph.add_node(task.task_id, task=task)
+
+        for dep in task.dependencies:
+            if dep in self.task_graph:
+                self.task_graph.add_edge(dep, task.task_id)
+        
         if self.strategy == "fifo":
             self.task_queue.append(task)  # Simple queue (FIFO)
         else:
             heapq.heappush(self.task_queue, task)  # Priority queue
+        
+        self._log_task(task)
         print(f"Task added: {task}")
+
+    def _log_task(self, task):
+        """Store task information in SQLite."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO task_log VALUES (?, ?, ?, ?, ?)", 
+                       (task.task_id, task.description, task.priority, task.complexity, task.status))
+        conn.commit()
+        conn.close()
 
     def assign_tasks(self):
         """Allocate tasks to agents based on the selected strategy."""
@@ -89,6 +127,8 @@ class TaskPlanner:
         if available_agents:
             best_agent = min(available_agents, key=lambda a: a.current_load)
             best_agent.assign_task(task)
+            task.status = "in_progress"
+            self._log_task(task)
         else:
             print(f"No available agents for task: {task.description}. Retrying later.")
             self.add_task(task)  # Re-add to queue for later execution
@@ -98,22 +138,41 @@ class TaskPlanner:
         print("Reassigning failed tasks...")
         for task in failed_tasks:
             task.status = "pending"  # Reset status
+            self._log_task(task)
             self.add_task(task)
         self.assign_tasks()
 
+    def resolve_dependencies(self, task_id):
+        """Checks if a task's dependencies are met before execution."""
+        if task_id in self.task_graph:
+            for dependency in list(self.task_graph.predecessors(task_id)):
+                dep_task = self.task_graph.nodes[dependency]['task']
+                if dep_task.status != "completed":
+                    return False
+        return True
+
+    def shutdown(self):
+        """Shutdown all active tasks and save state."""
+        print("Shutting down TaskPlanner...")
+        for agent in self.agents.values():
+            print(f"Agent {agent.agent_id} completed {len(agent.completed_tasks)} tasks.")
+
 # Example Usage
 if __name__ == "__main__":
-    planner = TaskPlanner(strategy="priority")  # Options: "fifo", "priority", "adaptive"
+    planner = TaskPlanner(strategy="priority")
 
     # Register Agents
     planner.add_agent("Agent1", capacity=3)
     planner.add_agent("Agent2", capacity=2)
 
-    # Add Tasks
+    # Add Tasks with Dependencies
     planner.add_task(Task("T1", "Data Preprocessing", priority=3, complexity=2))
-    planner.add_task(Task("T2", "Model Training", priority=5, complexity=4))
-    planner.add_task(Task("T3", "Evaluation", priority=2, complexity=1))
-    planner.add_task(Task("T4", "Report Generation", priority=4, complexity=2))
+    planner.add_task(Task("T2", "Model Training", priority=5, complexity=4, dependencies=["T1"]))
+    planner.add_task(Task("T3", "Evaluation", priority=2, complexity=1, dependencies=["T2"]))
+    planner.add_task(Task("T4", "Report Generation", priority=4, complexity=2, dependencies=["T3"]))
 
     # Assign Tasks
     planner.assign_tasks()
+
+    # Shutdown
+    planner.shutdown()
