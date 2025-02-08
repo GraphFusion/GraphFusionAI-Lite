@@ -18,8 +18,8 @@ class DistributedExecutor:
         """
         self.mode = mode
         self.task_queue = queue.Queue()
+        self.pool = multiprocessing.Pool()
         self.threads = []
-        self.processes = []
         self.remote_nodes = remote_nodes if remote_nodes else []
         self.failed_tasks = []
 
@@ -30,9 +30,7 @@ class DistributedExecutor:
             thread.start()
             self.threads.append(thread)
         elif self.mode == "multiprocessing" or (self.mode == "hybrid" and task_type == "heavy"):
-            process = multiprocessing.Process(target=self._run_task, args=(agent_id, task))
-            process.start()
-            self.processes.append(process)
+            self.pool.apply_async(self._run_task, args=(agent_id, task), error_callback=self._handle_failure)
         elif self.mode == "distributed":
             self._send_task_to_remote(agent_id, task)
         else:
@@ -75,8 +73,8 @@ class DistributedExecutor:
         """Shutdown all running threads and processes."""
         for thread in self.threads:
             thread.join()
-        for process in self.processes:
-            process.join()
+        self.pool.close()
+        self.pool.join()
 
 # Example usage
 if __name__ == "__main__":
