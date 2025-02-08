@@ -30,7 +30,7 @@ class DistributedExecutor:
             thread.start()
             self.threads.append(thread)
         elif self.mode == "multiprocessing" or (self.mode == "hybrid" and task_type == "heavy"):
-            process = multiprocessing.Process(target=self._run_task, args=(agent_id, task))
+            process = multiprocessing.Process(target=self._run_multiprocess_task, args=(agent_id, task))
             process.start()
             self.processes.append(process)
         elif self.mode == "distributed":
@@ -43,7 +43,14 @@ class DistributedExecutor:
         print(f"Agent {agent_id} executing task: {task}")
         time.sleep(1)  # Simulate task processing time
         print(f"Agent {agent_id} completed task: {task}")
-    
+
+    @staticmethod
+    def _run_multiprocess_task(agent_id, task):
+        """Wrapper function to ensure picklable execution for multiprocessing."""
+        print(f"[Process] Agent {agent_id} executing task: {task}")
+        time.sleep(1)
+        print(f"[Process] Agent {agent_id} completed task: {task}")
+
     def _send_task_to_remote(self, agent_id, task):
         """Send task to a remote node for execution."""
         if not self.remote_nodes:
@@ -60,10 +67,6 @@ class DistributedExecutor:
             print(f"Failed to send task to remote node {node}: {e}")
             self.failed_tasks.append((agent_id, task))
     
-    def _handle_failure(self, error):
-        """Handle task execution failures."""
-        print(f"Task failed due to: {error}")
-    
     def retry_failed_tasks(self):
         """Retry all previously failed tasks."""
         for agent_id, task in self.failed_tasks:
@@ -78,7 +81,6 @@ class DistributedExecutor:
         for process in self.processes:
             process.join()
 
-# Example usage
 if __name__ == "__main__":
     remote_nodes = [("127.0.0.1", 5000)]  # Example remote node
     executor = DistributedExecutor(mode="hybrid", remote_nodes=remote_nodes)
