@@ -1,10 +1,10 @@
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from memory import MemoryManager
-from execution import TaskExecutor
-from monitor import AgentMonitor
-from fault_tolerance import FaultTolerance
+from graphfusionai.memory import MemoryManager
+from graphfusionai.execution import TaskExecutor
+from graphfusionai.monitor import AgentMonitor
+from graphfusionai.fault_tolerance import FaultTolerance
 
 # Initialize components
 memory = MemoryManager()
