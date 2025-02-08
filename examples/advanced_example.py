@@ -54,7 +54,6 @@ for agent_id, agent in planner.agents.items():
     for task in agent.completed_tasks:
         executor.execute_task(agent_id, task.description, task_type="light" if task.complexity < 3 else "heavy")
 
-# Shutdown after Execution
 planner.shutdown()
 executor.shutdown()
 
