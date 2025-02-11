@@ -1,9 +1,5 @@
 # GraphFusionAI-Lite
 
-Great question! Let’s break it down step by step to ensure **developers can easily build agents** with GraphFusionAI-Lite.  
-
----
-
 ### **How Developers Will Build Agents**
 Developers will follow a simple workflow:  
 1. **Define an Agent**: Create a custom agent by extending a base class or using a factory function.  
