@@ -29,13 +29,13 @@ class Agent:
         self.agent_id = agent_id
         self.capacity = capacity  # Maximum workload capacity
         self.current_load = 0  # Tracks the number of ongoing tasks
-        self.assigned_tasks = []  # ✅ Store assigned tasks
         self.completed_tasks = []
+        self.assigned_tasks = []  # ✅ Add this to track assigned tasks
 
     def assign_task(self, task):
         """Assign a new task if capacity allows."""
         if self.current_load < self.capacity:
-            self.assigned_tasks.append(task)  # ✅ Track assigned tasks
+            self.assigned_tasks.append(task)  # ✅ Store assigned tasks
             print(f"Agent {self.agent_id} is executing: {task.description}")
             self.current_load += 1
             time.sleep(random.uniform(0.5, 1.5))  # Simulate task execution
@@ -48,9 +48,8 @@ class Agent:
         task.status = "completed"
         self.current_load -= 1
         self.completed_tasks.append(task)
-        self.assigned_tasks.remove(task)  # ✅ Remove from assigned tasks
+        self.assigned_tasks.remove(task)  # ✅ Remove task after completion
         print(f"Agent {self.agent_id} completed task: {task.description}")
-
 
 class TaskPlanner:
     """Handles task allocation, planning, and persistence."""
