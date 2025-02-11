@@ -38,7 +38,7 @@ def execute_task_with_monitoring(agent_id, task):
         execution_time = random.uniform(1, 3)  # Simulating execution time
         time.sleep(execution_time)
         
-        if random.random() < 0.1:  # Simulate failure (10% chance)
+        if random.random() < 0.1:  # Simulating failure (10% chance)
             raise Exception(f"Simulated failure for task {task.task_id}")
 
         task.status = "completed"
@@ -46,9 +46,9 @@ def execute_task_with_monitoring(agent_id, task):
 
     except Exception as e:
         print(f"[ERROR] Task {task.task_id} failed: {e}")
-        planner.reassign_failed_tasks([task])  # Retry failed tasks
+        planner.reassign_failed_tasks([task])  # Retrying failed tasks
 
-# Assign and Execute Tasks
+# Assigning and Executing Tasks
 planner.assign_tasks()
 for agent_id, agent in planner.agents.items():
     for task in agent.completed_tasks:
