@@ -139,7 +139,7 @@ if __name__ == "__main__":
     planner.assign_tasks()
     
     for agent_id, agent_data in planner.agents.items():
-        for task in agent_data.tasks:  # Execute assigned tasks, not completed ones
+        for task in agent_data.assign_tasks:  # Execute assigned tasks, not completed ones
             execute_task_with_monitoring(agent_id, task)
             executor.execute_task(agent_id, task.description, task_type="light" if task.complexity < 3 else "heavy")
     
