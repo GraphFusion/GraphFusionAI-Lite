@@ -150,6 +150,10 @@ class TaskPlanner:
                 if dep_task.status != "completed":
                     return False
         return True
+    
+    def assigned_tasks(self):
+        """Returns the list of currently assigned tasks."""
+        return [task for task in self.task_queue if task.status == "in_progress"]
 
     def shutdown(self):
         """Shutdown all active tasks and save state."""
