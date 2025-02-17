@@ -10,8 +10,8 @@ class Task:
     def __init__(self, task_id, description, priority=1, complexity=1, dependencies=None):
         self.task_id = task_id
         self.description = description
-        self.priority = priority  # Higher priority = more urgent
-        self.complexity = complexity  # Higher complexity = requires more resources
+        self.priority = priority  
+        self.complexity = complexity  
         self.dependencies = dependencies if dependencies else []
         self.status = "pending"  # "pending", "in_progress", "completed", "failed"
     
