@@ -35,7 +35,7 @@ class Agent:
     def assign_task(self, task):
         """Assign a new task if capacity allows."""
         if self.current_load < self.capacity:
-            self.assigned_tasks.append(task)  # ✅ Store assigned tasks
+            self.assigned_tasks.append(task) 
             print(f"Agent {self.agent_id} is executing: {task.description}")
             self.current_load += 1
             time.sleep(random.uniform(0.5, 1.5))  # Simulate task execution
