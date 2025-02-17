@@ -1,6 +1,7 @@
 import heapq
 import time
 import random
+import itertools
 import networkx as nx
 import sqlite3
 
@@ -16,8 +17,8 @@ class Task:
         self.status = "pending"  # "pending", "in_progress", "completed", "failed"
     
     def __lt__(self, other):
-        """Allows tasks to be sorted based on priority."""
-        return self.priority > other.priority  # Max heap (higher priority first)
+        """Allows tasks to be sorted based on priority (higher first)."""
+        return self.priority > other.priority  # Max heap
     
     def __repr__(self):
         return f"Task({self.task_id}, {self.description}, P={self.priority}, C={self.complexity}, Status={self.status})"
@@ -27,28 +28,28 @@ class Agent:
     
     def __init__(self, agent_id, capacity=5):
         self.agent_id = agent_id
-        self.capacity = capacity  # Maximum workload capacity
-        self.current_load = 0  # Tracks the number of ongoing tasks
+        self.capacity = capacity  # Max workload capacity
+        self.current_load = 0  # Tracks active tasks
         self.completed_tasks = []
-        self.assigned_tasks = []  # ✅ Add this to track assigned tasks
+        self.assigned_tasks = []
 
     def assign_task(self, task):
-        """Assign a new task if capacity allows."""
+        """Assigns a task if capacity allows."""
         if self.current_load < self.capacity:
             self.assigned_tasks.append(task) 
             print(f"Agent {self.agent_id} is executing: {task.description}")
             self.current_load += 1
-            time.sleep(random.uniform(0.5, 1.5))  # Simulate task execution
+            time.sleep(random.uniform(0.5, 1.5))  # Simulate execution
             self.complete_task(task)
         else:
             print(f"Agent {self.agent_id} is overloaded. Task '{task.description}' deferred.")
 
     def complete_task(self, task):
-        """Mark a task as completed."""
+        """Marks a task as completed."""
         task.status = "completed"
         self.current_load -= 1
         self.completed_tasks.append(task)
-        self.assigned_tasks.remove(task)  # ✅ Remove task after completion
+        self.assigned_tasks.remove(task)  
         print(f"Agent {self.agent_id} completed task: {task.description}")
 
 class TaskPlanner:
@@ -56,15 +57,17 @@ class TaskPlanner:
     
     def __init__(self, strategy="priority", db_path="tasks.db"):
         """
-        Planning strategies:
-        - "fifo": First In, First Out task execution.
-        - "priority": Executes highest-priority tasks first.
-        - "adaptive": Adjusts execution order dynamically based on agent workload.
+        Strategies:
+        - "fifo": First In, First Out
+        - "priority": Highest-priority first
+        - "adaptive": Dynamic task allocation
         """
         self.strategy = strategy
-        self.task_queue = []  # Heap queue for priority-based execution
-        self.agents = {}  # Maps agent_id -> Agent instance
-        self.task_graph = nx.DiGraph()  # Graph for dependency management
+        self.task_queue = []  
+        self.pending_tasks = []  # ⬅ **NEW**: Holds tasks waiting for dependencies
+        self.agents = {}  
+        self.agent_cycle = None  # Round-robin iterator
+        self.task_graph = nx.DiGraph()  
         self.db_path = db_path
         self._setup_db()
 
@@ -87,9 +90,10 @@ class TaskPlanner:
     def add_agent(self, agent_id, capacity=5):
         """Register a new agent."""
         self.agents[agent_id] = Agent(agent_id, capacity)
-    
+        self.agent_cycle = itertools.cycle(self.agents.values())  # Round-robin agent selection
+
     def add_task(self, task):
-        """Add a new task and log it to the database."""
+        """Add a new task and log it."""
         self.task_graph.add_node(task.task_id, task=task)
 
         for dep in task.dependencies:
@@ -97,15 +101,15 @@ class TaskPlanner:
                 self.task_graph.add_edge(dep, task.task_id)
         
         if self.strategy == "fifo":
-            self.task_queue.append(task)  # Simple queue (FIFO)
+            self.task_queue.append(task)  
         else:
-            heapq.heappush(self.task_queue, task)  # Priority queue
-        
+            heapq.heappush(self.task_queue, task)  
+
         self._log_task(task)
         print(f"Task added: {task}")
 
     def _log_task(self, task):
-        """Store task information in SQLite."""
+        """Store task info in SQLite."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO task_log VALUES (?, ?, ?, ?, ?)", 
@@ -114,39 +118,41 @@ class TaskPlanner:
         conn.close()
 
     def assign_tasks(self):
-        """Allocate tasks to agents based on the selected strategy."""
-        if self.strategy == "fifo":
-            random.shuffle(self.task_queue)  # To avoid bias
-            for task in self.task_queue:
-                self._assign_task_to_least_loaded_agent(task)
-        else:
+        """Allocate tasks to agents fairly."""
+        while self.task_queue or self.pending_tasks:
+            # Process pending tasks first
+            if self.pending_tasks:
+                print("Retrying pending tasks...")
+                self.task_queue.extend(self.pending_tasks)
+                self.pending_tasks.clear()
+
+            # Process the queue
             while self.task_queue:
                 task = heapq.heappop(self.task_queue)
-                self._assign_task_to_least_loaded_agent(task)
 
-    def _assign_task_to_least_loaded_agent(self, task):
-        """Finds the least-loaded agent and assigns the task."""
+                # Ensure dependencies are met before assignment
+                if not self.resolve_dependencies(task.task_id):
+                    print(f"Task {task.task_id} waiting for dependencies.")
+                    self.pending_tasks.append(task)  # Store in pending queue
+                    continue
+
+                self._assign_task_to_agent(task)
+
+    def _assign_task_to_agent(self, task):
+        """Assigns tasks using a round-robin approach."""
         available_agents = [agent for agent in self.agents.values() if agent.current_load < agent.capacity]
+
         if available_agents:
-            best_agent = min(available_agents, key=lambda a: a.current_load)
+            best_agent = next(self.agent_cycle)  # Round-robin selection
             best_agent.assign_task(task)
             task.status = "in_progress"
             self._log_task(task)
         else:
             print(f"No available agents for task: {task.description}. Retrying later.")
-            self.add_task(task)  # Re-add to queue for later execution
-
-    def reassign_failed_tasks(self, failed_tasks):
-        """Reassign failed tasks."""
-        print("Reassigning failed tasks...")
-        for task in failed_tasks:
-            task.status = "pending"  # Reset status
-            self._log_task(task)
-            self.add_task(task)
-        self.assign_tasks()
+            self.pending_tasks.append(task)  # Store in pending queue for later
 
     def resolve_dependencies(self, task_id):
-        """Checks if a task's dependencies are met before execution."""
+        """Checks if task dependencies are met before execution."""
         if task_id in self.task_graph:
             for dependency in list(self.task_graph.predecessors(task_id)):
                 dep_task = self.task_graph.nodes[dependency]['task']
@@ -154,12 +160,8 @@ class TaskPlanner:
                     return False
         return True
     
-    def assigned_tasks(self):
-        """Returns the list of currently assigned tasks."""
-        return [task for task in self.task_queue if task.status == "in_progress"]
-
     def shutdown(self):
-        """Shutdown all active tasks and save state."""
+        """Shutdown and save state."""
         print("Shutting down TaskPlanner...")
         for agent in self.agents.values():
             print(f"Agent {agent.agent_id} completed {len(agent.completed_tasks)} tasks.")
@@ -173,10 +175,13 @@ if __name__ == "__main__":
     planner.add_agent("Agent2", capacity=2)
 
     # Add Tasks with Dependencies
-    planner.add_task(Task("T1", "Data Preprocessing", priority=3, complexity=2))
-    planner.add_task(Task("T2", "Model Training", priority=5, complexity=4, dependencies=["T1"]))
-    planner.add_task(Task("T3", "Evaluation", priority=2, complexity=1, dependencies=["T2"]))
-    planner.add_task(Task("T4", "Report Generation", priority=4, complexity=2, dependencies=["T3"]))
+    planner.add_task(Task("T1", "Data Collection", priority=5, complexity=2))
+    planner.add_task(Task("T2", "Data Preprocessing", priority=4, complexity=3, dependencies=["T1"]))
+    planner.add_task(Task("T3", "Feature Engineering", priority=4, complexity=3, dependencies=["T2"]))
+    planner.add_task(Task("T4", "Model Training", priority=6, complexity=5, dependencies=["T3"]))
+    planner.add_task(Task("T5", "Model Evaluation", priority=3, complexity=2, dependencies=["T4"]))
+    planner.add_task(Task("T6", "Hyperparameter Tuning", priority=7, complexity=5, dependencies=["T4"]))
+    planner.add_task(Task("T7", "Final Model Deployment", priority=8, complexity=4, dependencies=["T5", "T6"]))
 
     # Assign Tasks
     planner.assign_tasks()
