@@ -1,6 +1,6 @@
 # GraphFusionAI-Lite
 
-GraphFusionAI-Lite is a lightweight, graph-based multi-agent system designed to enable autonomous AI agents to collaborate effectively on complex tasks. It provides a structured yet dynamic approach to multi-agent coordination, leveraging graphs for communication, task execution, and knowledge sharing.
+GraphFusionAI-Lite is a lightweight,experimental graph-based multi-agent system designed to enable autonomous AI agents to collaborate effectively on complex tasks. It provides a structured yet dynamic approach to multi-agent coordination, leveraging graphs for communication, task execution, and knowledge sharing.
 
 ## Features
 
