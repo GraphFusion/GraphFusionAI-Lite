@@ -1,4 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
+
+# Compatibility check for type hints
+try:
+    List[str]
+except NameError:
+    from typing import List  # Force import if not available
 
 class Task:
     """

@@ -51,8 +51,10 @@ class Agent:
             self.team.report_task_failure(self.agent_id, task, str(e))
             raise
 
-    def request_help(self, task: Dict, recipient_id: str):
-        """Request help from another agent"""
+    def request_help(self, recipient_id: str, task: Dict[str, Any]):
+        """Request help from another agent for a specific task"""
+        if not isinstance(recipient_id, str):
+            raise TypeError(f"recipient_id must be a string, got {type(recipient_id)}: {recipient_id}")
         if not self.team:
             raise RuntimeError("Agent not part of a team")
         self.team.send_message(self.agent_id, recipient_id, {

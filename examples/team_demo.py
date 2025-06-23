@@ -6,14 +6,21 @@ It creates a team of agents with different roles, assigns tasks, and shows
 how they collaborate through communication and knowledge sharing.
 """
 
+import sys
+print(f"Python version: {sys.version}")
+
+if sys.version_info < (3, 9):
+    print("Error: Python 3.9 or higher required for type hinting features")
+    sys.exit(1)
+
 import time
 from graphfusionai.graph_manager import GraphManager
 from graphfusionai.agent import Agent
 from graphfusionai.team import Team
 from graphfusionai.task import Task
 
-# Create a knowledge graph manager
-gm = GraphManager("team_demo_graph.json")
+# Initialize the graph manager
+gm = GraphManager()
 
 # Create a team
 project_team = Team("ProjectAlpha", gm)
@@ -55,15 +62,16 @@ planner.execute_task(planning_task)
 executor.execute_task(execution_task)
 reviewer.execute_task(review_task)
 
-# Simulate help request (executor asks planner for clarification)
+# Executor encounters a problem and requests help from Planner
 executor.request_help(
-    {"type": "execute", "parameters": {"step": "Design database schema"}},
+    {"type": "plan", "parameters": {"goal": "Design database schema"}},
     "Planner1"
 )
 
 # Demonstrate knowledge sharing
 planner.contribute_to_knowledge_graph("design_pattern", "Microservices architecture")
-print(f"Executor retrieved design pattern: {executor.recall_memory('design_pattern')}")
+retrieved = executor.recall_memory('design_pattern')
+print(f"Executor retrieved design pattern: {retrieved}")
 
 # Visualize team structure
 print("\nTeam Communication Graph:")
