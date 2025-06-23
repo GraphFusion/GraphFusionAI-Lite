@@ -100,7 +100,7 @@ class Team:
     def report_task_completion(self, agent_id: str, task: Dict, result: Any):
         """Handle task completion report"""
         # Update shared state or knowledge graph
-        self.graph_manager.add_knowledge(agent_id, task["type"], result)
+        self.graph_manager.add_knowledge(agent_id, task["type"], result, knowledge_type=task["type"])
         
     def report_task_failure(self, agent_id: str, task: Dict, error: str):
         """Handle task failure report"""

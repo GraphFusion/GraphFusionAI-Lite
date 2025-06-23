@@ -71,7 +71,6 @@ executor.request_help(
 # Demonstrate knowledge sharing
 planner.contribute_to_knowledge_graph("design_pattern", "Microservices architecture")
 retrieved = executor.recall_memory('design_pattern')
-print(f"Executor retrieved design pattern: {retrieved}")
 
 # Visualize team structure
 print("\nTeam Communication Graph:")

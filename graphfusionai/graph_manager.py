@@ -9,6 +9,7 @@ import networkx as nx
 import json
 from typing import Any
 import time
+import uuid
 
 class GraphManager:
     """
@@ -96,18 +97,17 @@ class GraphManager:
         """
         self.add_connection(source_id, target_id, relation=relationship)
 
-    def add_knowledge(self, agent_id: str, knowledge_type: str, content: Any):
-        """
-        Add knowledge produced by an agent to the graph.
-        
-        Args:
-            agent_id: ID of the agent that produced the knowledge
-            knowledge_type: Type/category of knowledge
-            content: The knowledge content to store
-        """
-        knowledge_id = f"knowledge_{knowledge_type}_{time.time()}"
-        self.graph.add_node(knowledge_id, type="knowledge", 
-                           knowledge_type=knowledge_type, content=content)
+    def add_knowledge(self, agent_id: str, key: str, value: Any, knowledge_type: str = "fact"):
+        """Add a piece of knowledge to the graph"""
+        knowledge_id = f"knowledge_{uuid.uuid4().hex}"
+        attrs = {
+            'type': 'knowledge',
+            'key': key,
+            'value': value,
+            'knowledge_type': knowledge_type,
+            'content': value
+        }
+        self.graph.add_node(knowledge_id, **attrs)
         self.graph.add_edge(agent_id, knowledge_id, relation="produced")
 
     def query_knowledge(self, key: str):
@@ -128,4 +128,4 @@ if __name__ == "__main__":
     gm.visualize_graph()
     gm.add_node("Node1", {"type": "entity"})
     gm.add_edge("Node1", "Node2", "related_to")
-    gm.add_knowledge("Agent1", "plan", {"steps": ["step1", "step2"]})
+    gm.add_knowledge("Agent1", "key", "value", "fact")
