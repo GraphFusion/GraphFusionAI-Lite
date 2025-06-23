@@ -3,6 +3,7 @@ import time
 import random
 import networkx as nx
 import sqlite3
+from .state_manager import StateManager
 
 class Task:
     """Represents a task with priority, complexity, and dependencies."""
@@ -30,7 +31,7 @@ class Agent:
         self.capacity = capacity  # Maximum workload capacity
         self.current_load = 0  # Tracks the number of ongoing tasks
         self.completed_tasks = []
-        self.assigned_tasks = []  # ✅ Add this to track assigned tasks
+        self.assigned_tasks = []  # Add this to track assigned tasks
 
     def assign_task(self, task):
         """Assign a new task if capacity allows."""
@@ -48,11 +49,11 @@ class Agent:
         task.status = "completed"
         self.current_load -= 1
         self.completed_tasks.append(task)
-        self.assigned_tasks.remove(task)  # ✅ Remove task after completion
+        self.assigned_tasks.remove(task)  # Remove task after completion
         print(f"Agent {self.agent_id} completed task: {task.description}")
 
 class TaskPlanner:
-    """Handles task allocation, planning, and persistence."""
+    """Enhanced workflow orchestrator with LangGraph-like features"""
     
     def __init__(self, strategy="priority", db_path="tasks.db"):
         """
@@ -67,7 +68,9 @@ class TaskPlanner:
         self.task_graph = nx.DiGraph()  # Graph for dependency management
         self.db_path = db_path
         self._setup_db()
-
+        self.tasks = []
+        self.state_manager = StateManager()
+        
     def _setup_db(self):
         """Initialize SQLite database for task logging."""
         conn = sqlite3.connect(self.db_path)
@@ -88,8 +91,14 @@ class TaskPlanner:
         """Register a new agent."""
         self.agents[agent_id] = Agent(agent_id, capacity)
     
-    def add_task(self, task):
-        """Add a new task and log it to the database."""
+    def add_task(self, task, dependencies=None):
+        """Add task with dependencies"""
+        task_entry = {
+            'task': task,
+            'dependencies': dependencies or [],
+            'status': 'pending'
+        }
+        self.tasks.append(task_entry)
         self.task_graph.add_node(task.task_id, task=task)
 
         for dep in task.dependencies:
@@ -163,6 +172,53 @@ class TaskPlanner:
         print("Shutting down TaskPlanner...")
         for agent in self.agents.values():
             print(f"Agent {agent.agent_id} completed {len(agent.completed_tasks)} tasks.")
+
+    def execute_workflow(self):
+        """Execute tasks with parallel processing and state management"""
+        from .distributed import DistributedExecutor
+        
+        # Initialize state
+        self.state_manager.update_state({'workflow_started': True})
+        
+        # Create execution graph
+        execution_graph = self._build_execution_graph()
+        
+        # Execute with parallel processing
+        executor = DistributedExecutor()
+        results = executor.execute_graph(execution_graph, self.state_manager)
+        
+        # Update final state
+        self.state_manager.update_state({'workflow_completed': True, 'results': results})
+        return results
+        
+    def _build_execution_graph(self):
+        """Build NetworkX execution graph from task dependencies"""
+        import networkx as nx
+        
+        graph = nx.DiGraph()
+        for task in self.tasks:
+            graph.add_node(task['task'].task_id, task=task)
+            for dep in task['dependencies']:
+                graph.add_edge(dep, task['task'].task_id)
+        
+        return graph
+
+    def add_conditional_transition(self, source_task, condition, true_branch, false_branch):
+        """Add conditional workflow branching"""
+        # Create state branches
+        self.state_manager.create_branch('main', 'true_branch')
+        self.state_manager.create_branch('main', 'false_branch')
+        
+        # Add conditional logic
+        self.state_manager.update_state({
+            'transitions': {
+                source_task: {
+                    'condition': condition,
+                    'true': true_branch,
+                    'false': false_branch
+                }
+            }
+        })
 
 # Example Usage
 if __name__ == "__main__":
