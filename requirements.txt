@@ -1,3 +1,2 @@
 networkx
-sqlite3
 gymnasium
