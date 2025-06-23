@@ -1,5 +1,9 @@
 import threading
+import asyncio
 from typing import Dict, List, Callable, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Agent:
     """
@@ -28,30 +32,44 @@ class Agent:
         # Register agent in knowledge graph
         self.graph_manager.add_agent(self.agent_id, {"role": self.role})
 
-    def assign_to_team(self, team):
+    async def assign_to_team(self, team):
         """Assign this agent to a team"""
         self.team = team
         self.graph_manager.add_connection(self.agent_id, team.team_id, 
                                          relation="member_of")
 
-    def add_capability(self, name: str, function: Callable):
+    async def add_capability(self, name: str, function: Callable):
         """Add a new capability to the agent"""
         self.capabilities[name] = function
 
-    def execute_task(self, task: Dict):
-        """Execute a task using the agent's capabilities"""
-        if task["type"] not in self.capabilities:
-            raise ValueError(f"Agent {self.agent_id} lacks capability: {task['type']}")
-            
+    async def execute_task(self, task: Dict[str, Any]) -> Any:
+        """Execute a task asynchronously"""
+        if not self.capabilities:
+            raise RuntimeError("No capabilities defined for agent")
+        
+        task_type = task.get("type")
+        if task_type not in self.capabilities:
+            raise ValueError(f"Unsupported task type: {task_type}")
+        
+        capability = self.capabilities[task_type]
         try:
-            result = self.capabilities[task["type"]](**task["parameters"])
+            # If capability is async function, await it
+            if asyncio.iscoroutinefunction(capability):
+                result = await capability(**task.get("parameters", {}))
+            else:
+                # Run synchronous function in thread pool
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(
+                    None, capability, **task.get("parameters", {})
+                )
             self.team.report_task_completion(self.agent_id, task, result)
             return result
         except Exception as e:
+            logger.error(f"Task execution failed: {e}")
             self.team.report_task_failure(self.agent_id, task, str(e))
             raise
 
-    def request_help(self, task: Dict[str, Any], recipient_id: str):
+    async def request_help(self, task: Dict[str, Any], recipient_id: str):
         """Request help from another agent for a specific task"""
         if not isinstance(recipient_id, str):
             raise TypeError(f"recipient_id must be a string, got {type(recipient_id)}: {recipient_id}")
@@ -62,26 +80,26 @@ class Agent:
             "task": task
         })
 
-    def send_message(self, recipient_id: str, content: Dict):
+    async def send_message(self, recipient_id: str, content: Dict):
         """Send a message to another agent"""
         if not self.team:
             raise RuntimeError("Agent not part of a team")
         self.team.send_message(self.agent_id, recipient_id, content)
 
-    def receive_message(self, sender_id: str, content: Dict):
+    async def receive_message(self, sender_id: str, content: Dict):
         """Handle incoming message"""
         # Default implementation - can be overridden
         print(f"{self.agent_id} received message from {sender_id}: {content}")
         
         if content["type"] == "help_request":
             # Automatically accept help requests
-            self.execute_task(content["task"])
+            await self.execute_task(content["task"])
 
-    def store_memory(self, key: str, value: Any):
+    async def store_memory(self, key: str, value: Any):
         """Store information in local memory"""
         self.memory[key] = value
 
-    def recall_memory(self, key: str):
+    async def recall_memory(self, key: str):
         """Retrieve information from shared knowledge graph or local memory"""
         # First try the knowledge graph
         result = self.graph_manager.query_knowledge(key)
@@ -90,7 +108,7 @@ class Agent:
         # Fallback to local memory
         return self.memory.get(key)
 
-    def contribute_to_knowledge_graph(self, key: str, value: Any):
+    async def contribute_to_knowledge_graph(self, key: str, value: Any):
         """Contribute knowledge to the shared graph"""
         self.graph_manager.add_knowledge(self.agent_id, key, value)
 
@@ -101,11 +119,9 @@ if __name__ == "__main__":
     gm = GraphManager("graph_data.json")
     agent1 = Agent("Agent1", "planner", {}, gm)
     agent2 = Agent("Agent2", "executor", {}, gm)
-    agent1.assign_to_team(None)  # Assign to a team
-    agent2.assign_to_team(None)  # Assign to a team
-    agent1.send_message("Agent2", {"type": "help_request", "task": {"type": "data_processing"}})
-    agent1.store_memory("task", "Optimize pipeline")
-    print(agent1.recall_memory("task"))
-    agent1.contribute_to_knowledge_graph("strategy", "Divide and conquer")
-    # print(agent1.retrieve_global_knowledge("strategy"))  # This method does not exist in the new Agent class
-    # agent2.execute_task("Data processing")  # This method requires a task dictionary in the new Agent class
+    asyncio.run(agent1.assign_to_team(None))  # Assign to a team
+    asyncio.run(agent2.assign_to_team(None))  # Assign to a team
+    asyncio.run(agent1.send_message("Agent2", {"type": "help_request", "task": {"type": "data_processing"}}))
+    asyncio.run(agent1.store_memory("task", "Optimize pipeline"))
+    print(asyncio.run(agent1.recall_memory("task")))
+    asyncio.run(agent1.contribute_to_knowledge_graph("strategy", "Divide and conquer"))

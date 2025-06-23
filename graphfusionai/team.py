@@ -18,8 +18,8 @@ class Team:
     
     def __init__(self, team_id: str, graph_manager: GraphManager):
         self.team_id = team_id
-        self.agents = {}
         self.graph_manager = graph_manager
+        self.agents = {}  # Dictionary of agent_id to Agent
         self.task_queue = []
         self.communication_graph = {}
         self.shared_state = {}
@@ -28,26 +28,15 @@ class Team:
         # Register the team in the knowledge graph
         self.graph_manager.add_agent(self.team_id, {"type": "team"})
     
-    def add_agent(self, agent: Agent):
-        """
-        Add an agent to the team.
-        
-        Args:
-            agent: Agent instance to add
-        """
+    async def add_agent(self, agent: Agent):
+        """Add an agent to the team"""
         with self.lock:
             self.agents[agent.agent_id] = agent
-            agent.assign_to_team(self)
-            
-            # Register agent in the knowledge graph
-            self.graph_manager.add_agent(agent.agent_id, {"type": "agent", "role": agent.role})
-            
-            # Add communication link from team to agent
-            self.graph_manager.add_connection(self.team_id, agent.agent_id, "has_member")
-            
-            # Initialize communication graph for this agent
-            self.communication_graph[agent.agent_id] = []
-    
+            # Add agent to communication graph
+            self.graph_manager.add_agent(agent.agent_id, {"role": agent.role})
+            # Connect agent to team
+            self.graph_manager.add_connection(agent.agent_id, self.team_id, "member")
+        
     def remove_agent(self, agent_id: str):
         """Remove an agent from the team"""
         with self.lock:
@@ -77,25 +66,16 @@ class Team:
             if agent_id != sender_id:  # Don't send to self
                 self.send_message(sender_id, agent_id, message)
     
-    def send_message(self, sender_id: str, recipient_id: str, message: Dict):
+    async def send_message(self, sender_id: str, recipient_id: str, content: Dict):
         """Send a message from one agent to another"""
-        try:
-            agent = self.agents[recipient_id]
-        except KeyError:
+        if recipient_id not in self.agents:
             raise ValueError(f"Recipient agent {recipient_id} not found in team")
-        except TypeError as e:
-            raise TypeError(f"Recipient agent id must be a string, got {type(recipient_id)}: {recipient_id}") from e
-        # Ensure recipient_id is a string
-        if not isinstance(recipient_id, str):
-            recipient_id = str(recipient_id)
-        # Update communication graph
-        if sender_id not in self.communication_graph:
-            self.communication_graph[sender_id] = []
-        if recipient_id not in self.communication_graph[sender_id]:
-            self.communication_graph[sender_id].append(recipient_id)
+            
+        # Record communication
+        self.graph_manager.add_communication(sender_id, recipient_id, content)
         
         # Deliver message
-        agent.receive_message(sender_id, message)
+        await self.agents[recipient_id].receive_message(sender_id, content)
     
     def report_task_completion(self, agent_id: str, task: Dict, result: Any):
         """Handle task completion report"""
