@@ -7,17 +7,19 @@ how they collaborate through communication and knowledge sharing.
 """
 
 import sys
-print(f"Python version: {sys.version}")
-
-if sys.version_info < (3, 9):
-    print("Error: Python 3.9 or higher required for type hinting features")
-    sys.exit(1)
-
 import time
 from graphfusionai.graph_manager import GraphManager
 from graphfusionai.agent import Agent
 from graphfusionai.team import Team
 from graphfusionai.task import Task
+from graphfusionai.logger import FRAMEWORK_LOGGER as logger
+
+# Initialize logger
+logger.info(f"Python version: {sys.version}")
+
+if sys.version_info < (3, 9):
+    logger.error("Python 3.9 or higher required for type hinting features")
+    sys.exit(1)
 
 # Initialize the graph manager
 gm = GraphManager()
@@ -28,18 +30,18 @@ project_team = Team("ProjectAlpha", gm)
 # Define agent capabilities
 def plan_task(goal: str) -> dict:
     """Plan how to achieve a goal"""
-    print(f"Planning how to achieve: {goal}")
+    logger.info(f"Planning how to achieve: {goal}")
     return {"steps": ["Research", "Design", "Implement", "Test"], "timeline": 14}
 
 def execute_step(step: str) -> str:
     """Execute a development step"""
-    print(f"Executing step: {step}")
+    logger.info(f"Executing step: {step}")
     time.sleep(1)  # Simulate work
     return f"{step} completed"
 
 def review_work(result: str) -> bool:
     """Review work result"""
-    print(f"Reviewing: {result}")
+    logger.info(f"Reviewing: {result}")
     return "error" not in result.lower()
 
 # Create agents with different roles
@@ -71,12 +73,12 @@ executor.request_help(
 # Demonstrate knowledge sharing
 planner.contribute_to_knowledge_graph("design_pattern", "Microservices architecture")
 retrieved = executor.recall_memory('design_pattern')
-print(f"\n[KNOWLEDGE] Executor retrieved design pattern: {retrieved}\n")
+logger.info(f"\n[KNOWLEDGE] Executor retrieved design pattern: {retrieved}\n")
 
 # Visualize team structure
-print("\nTeam Communication Graph:")
+logger.info("\nTeam Communication Graph:")
 project_team.visualize_communication_graph()
 
 # Save knowledge graph
 gm.save_graph()
-print("\nDemo completed successfully!")
+logger.info("\nDemo completed successfully!")
