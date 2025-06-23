@@ -51,7 +51,7 @@ class Agent:
             self.team.report_task_failure(self.agent_id, task, str(e))
             raise
 
-    def request_help(self, recipient_id: str, task: Dict[str, Any]):
+    def request_help(self, task: Dict[str, Any], recipient_id: str):
         """Request help from another agent for a specific task"""
         if not isinstance(recipient_id, str):
             raise TypeError(f"recipient_id must be a string, got {type(recipient_id)}: {recipient_id}")
