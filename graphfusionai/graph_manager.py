@@ -110,6 +110,14 @@ class GraphManager:
                            knowledge_type=knowledge_type, content=content)
         self.graph.add_edge(agent_id, knowledge_id, relation="produced")
 
+    def query_knowledge(self, key: str):
+        """Query knowledge from the graph by key"""
+        results = []
+        for node, data in self.graph.nodes(data=True):
+            if data.get('type') == 'knowledge' and data.get('key') == key:
+                results.append(data['content'])
+        return results[0] if results else None
+
 # Example usage
 if __name__ == "__main__":
     gm = GraphManager("graph_data.json")

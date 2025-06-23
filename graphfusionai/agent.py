@@ -81,9 +81,14 @@ class Agent:
         """Store information in local memory"""
         self.memory[key] = value
 
-    def recall_memory(self, key: str) -> Optional[Any]:
-        """Retrieve information from local memory"""
-        return self.memory.get(key, None)
+    def recall_memory(self, key: str):
+        """Retrieve information from shared knowledge graph or local memory"""
+        # First try the knowledge graph
+        result = self.graph_manager.query_knowledge(key)
+        if result:
+            return result
+        # Fallback to local memory
+        return self.memory.get(key)
 
     def contribute_to_knowledge_graph(self, key: str, value: Any):
         """Contribute knowledge to the shared graph"""
