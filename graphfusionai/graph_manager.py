@@ -7,7 +7,7 @@ knowledge in the form of a graph.
 
 import networkx as nx
 import json
-from typing import Any
+from typing import Any, Dict
 import time
 import uuid
 
@@ -117,6 +117,13 @@ class GraphManager:
             if data.get('type') == 'knowledge' and data.get('key') == key:
                 results.append(data['content'])
         return results[0] if results else None
+
+    def add_communication(self, sender_id: str, recipient_id: str, content: Dict):
+        """Record a communication event in the graph"""
+        comm_id = f"comm_{uuid.uuid4().hex}"
+        self.graph.add_node(comm_id, type="communication", content=content)
+        self.graph.add_edge(sender_id, comm_id, relation="sent")
+        self.graph.add_edge(comm_id, recipient_id, relation="received")
 
 # Example usage
 if __name__ == "__main__":

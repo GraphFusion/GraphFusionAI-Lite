@@ -1,7 +1,10 @@
 import threading
 from typing import Dict, List, Any, Optional
+import logging
 from .agent import Agent
 from .graph_manager import GraphManager
+
+logger = logging.getLogger(__name__)
 
 class Team:
     """
@@ -32,6 +35,7 @@ class Team:
         """Add an agent to the team"""
         with self.lock:
             self.agents[agent.agent_id] = agent
+            agent.team = self  # Set the agent's team reference
             # Add agent to communication graph
             self.graph_manager.add_agent(agent.agent_id, {"role": agent.role})
             # Connect agent to team
@@ -68,6 +72,8 @@ class Team:
     
     async def send_message(self, sender_id: str, recipient_id: str, content: Dict):
         """Send a message from one agent to another"""
+        logger.debug(f"Sending message from {sender_id} to {recipient_id}")
+        logger.debug(f"Agents in team: {list(self.agents.keys())}")
         if recipient_id not in self.agents:
             raise ValueError(f"Recipient agent {recipient_id} not found in team")
             

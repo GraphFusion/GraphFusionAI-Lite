@@ -52,11 +52,9 @@ async def main():
     reviewer = Agent("Reviewer1", "reviewer", {"review": review_work}, gm)
     
     # Assign agents to team
-    await asyncio.gather(
-        planner.assign_to_team(project_team),
-        executor.assign_to_team(project_team),
-        reviewer.assign_to_team(project_team)
-    )
+    await project_team.add_agent(planner)
+    await project_team.add_agent(executor)
+    await project_team.add_agent(reviewer)
     
     # Assign tasks
     plan = await planner.execute_task({"type": "plan", "parameters": {"goal": "Build a web service"}})

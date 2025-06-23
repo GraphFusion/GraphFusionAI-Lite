@@ -47,6 +47,9 @@ class Agent:
         if not self.capabilities:
             raise RuntimeError("No capabilities defined for agent")
         
+        logger.debug(f"Agent {self.agent_id} executing task: {task}")
+        logger.debug(f"Agent team: {self.team}")
+        
         task_type = task.get("type")
         if task_type not in self.capabilities:
             raise ValueError(f"Unsupported task type: {task_type}")
@@ -75,7 +78,7 @@ class Agent:
             raise TypeError(f"recipient_id must be a string, got {type(recipient_id)}: {recipient_id}")
         if not self.team:
             raise RuntimeError("Agent not part of a team")
-        self.team.send_message(self.agent_id, recipient_id, {
+        await self.team.send_message(self.agent_id, recipient_id, {
             "type": "help_request",
             "task": task
         })
@@ -84,7 +87,7 @@ class Agent:
         """Send a message to another agent"""
         if not self.team:
             raise RuntimeError("Agent not part of a team")
-        self.team.send_message(self.agent_id, recipient_id, content)
+        await self.team.send_message(self.agent_id, recipient_id, content)
 
     async def receive_message(self, sender_id: str, content: Dict):
         """Handle incoming message"""
