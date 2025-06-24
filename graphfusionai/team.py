@@ -3,6 +3,9 @@ from typing import Dict, List, Any, Optional
 import logging
 from .agent import Agent
 from .graph_manager import GraphManager
+from .persistence import TeamStateDB, TeamState
+import time
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,7 @@ class Team:
         shared_state: Dictionary for shared state among team members
     """
     
-    def __init__(self, team_id: str, graph_manager: GraphManager):
+    def __init__(self, team_id: str, graph_manager: GraphManager, state_db: TeamStateDB = None):
         self.team_id = team_id
         self.graph_manager = graph_manager
         self.agents = {}  # Dictionary of agent_id to Agent
@@ -27,9 +30,14 @@ class Team:
         self.communication_graph = {}
         self.shared_state = {}
         self.lock = threading.Lock()
+        self.state_db = state_db
         
         # Register the team in the knowledge graph
         self.graph_manager.add_agent(self.team_id, {"type": "team"})
+        
+        # Load existing state if available
+        if state_db:
+            self.load_state()
     
     async def add_agent(self, agent: Agent):
         """Add an agent to the team"""
@@ -107,3 +115,24 @@ class Team:
         print(f"Communication Graph for Team {self.team_id}:")
         for sender, recipients in self.communication_graph.items():
             print(f"{sender} -> {', '.join(recipients)}")
+    
+    def load_state(self):
+        """Load team state from database"""
+        if self.state_db:
+            state = self.state_db.load_state(self.team_id)
+            if state:
+                # Note: Agents must be re-added to the team
+                # We only restore the agent IDs and task queue
+                self.task_queue = state.task_queue
+                # Agents will be added later via add_agent
+    
+    async def save_state(self):
+        """Save current team state to database"""
+        if self.state_db:
+            state = TeamState(
+                team_id=self.team_id,
+                agent_ids=list(self.agents.keys()),
+                task_queue=self.task_queue,
+                last_updated=time.time()
+            )
+            self.state_db.save_state(state)
