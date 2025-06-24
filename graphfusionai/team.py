@@ -22,7 +22,13 @@ class Team:
         shared_state: Dictionary for shared state among team members
     """
     
-    def __init__(self, team_id: str, graph_manager: GraphManager, state_db: TeamStateDB = None):
+    def __init__(
+        self,
+        team_id: str,
+        graph_manager: GraphManager,
+        state_db: Optional[TeamStateDB] = None,
+        auto_save_interval: int = 60,  # New parameter
+    ):
         self.team_id = team_id
         self.graph_manager = graph_manager
         self.agents = {}  # Dictionary of agent_id to Agent
@@ -31,6 +37,8 @@ class Team:
         self.shared_state = {}
         self.lock = threading.Lock()
         self.state_db = state_db
+        self.auto_save_interval = auto_save_interval
+        self._auto_save_task: Optional[asyncio.Task] = None
         
         # Register the team in the knowledge graph
         self.graph_manager.add_agent(self.team_id, {"type": "team"})
@@ -136,3 +144,32 @@ class Team:
                 last_updated=time.time()
             )
             self.state_db.save_state(state)
+
+    async def start(self) -> None:
+        """Start background tasks for the team, including auto-saving if enabled."""
+        if self.auto_save_interval > 0 and self._auto_save_task is None:
+            self._auto_save_task = asyncio.create_task(self._auto_save_loop())
+            logger.info(f"Team {self.team_id} auto-save started with interval {self.auto_save_interval} seconds.")
+
+    async def stop(self) -> None:
+        """Stop background tasks for the team."""
+        if self._auto_save_task:
+            self._auto_save_task.cancel()
+            try:
+                await self._auto_save_task
+            except asyncio.CancelledError:
+                pass
+            self._auto_save_task = None
+            logger.info(f"Team {self.team_id} auto-save stopped.")
+
+    async def _auto_save_loop(self) -> None:
+        """Periodically save the team's state."""
+        while True:
+            try:
+                await asyncio.sleep(self.auto_save_interval)
+                await self.save_state()
+                logger.debug(f"Auto-saved state for team {self.team_id}.")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error auto-saving team {self.team_id}: {e}", exc_info=True)

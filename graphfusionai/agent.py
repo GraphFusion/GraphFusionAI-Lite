@@ -22,7 +22,7 @@ class Agent:
     """
     
     def __init__(self, agent_id: str, role: str, capabilities: Dict[str, Callable], 
-                 graph_manager, team=None, state_db: AgentStateDB = None):
+                 graph_manager, team=None, state_db: AgentStateDB = None, auto_save_interval: int = 60):
         self.agent_id = agent_id
         self.role = role
         self.capabilities = capabilities
@@ -32,6 +32,8 @@ class Agent:
         self.task_queue = []
         self.status = "idle"  # idle, busy, error
         self.state_db = state_db
+        self.auto_save_interval = auto_save_interval
+        self._auto_save_task: Optional[asyncio.Task] = None
         
         # Load existing state if available
         if state_db:
@@ -146,6 +148,35 @@ class Agent:
             )
             self.state_db.save_state(state)
 
+    async def start(self) -> None:
+        """Start background tasks for the agent, including auto-saving if enabled."""
+        if self.auto_save_interval > 0 and self._auto_save_task is None:
+            self._auto_save_task = asyncio.create_task(self._auto_save_loop())
+            logger.info(f"Agent {self.agent_id} auto-save started with interval {self.auto_save_interval} seconds.")
+
+    async def stop(self) -> None:
+        """Stop background tasks for the agent."""
+        if self._auto_save_task:
+            self._auto_save_task.cancel()
+            try:
+                await self._auto_save_task
+            except asyncio.CancelledError:
+                pass
+            self._auto_save_task = None
+            logger.info(f"Agent {self.agent_id} auto-save stopped.")
+
+    async def _auto_save_loop(self) -> None:
+        """Periodically save the agent's state."""
+        while True:
+            try:
+                await asyncio.sleep(self.auto_save_interval)
+                await self.save_state()
+                logger.debug(f"Auto-saved state for agent {self.agent_id}.")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error auto-saving agent {self.agent_id}: {e}", exc_info=True)
+
 # Example usage
 if __name__ == "__main__":
     from graph_manager import GraphManager
@@ -162,3 +193,4 @@ if __name__ == "__main__":
     print(asyncio.run(agent1.recall_memory("task")))
     asyncio.run(agent1.contribute_to_knowledge_graph("strategy", "Divide and conquer"))
     asyncio.run(agent1.save_state())
+    asyncio.run(agent1.start())

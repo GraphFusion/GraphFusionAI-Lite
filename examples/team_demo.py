@@ -51,39 +51,52 @@ async def main():
     executor = Agent("Executor1", "executor", {"execute": execute_step}, gm)
     reviewer = Agent("Reviewer1", "reviewer", {"review": review_work}, gm)
     
-    # Assign agents to team
-    await project_team.add_agent(planner)
-    await project_team.add_agent(executor)
-    await project_team.add_agent(reviewer)
+    agents = [planner, executor, reviewer]
     
-    # Assign tasks
-    plan = await planner.execute_task({"type": "plan", "parameters": {"goal": "Build a web service"}})
-    
-    # Execute steps
-    for step in plan["steps"]:
-        result = await executor.execute_task({"type": "execute", "parameters": {"step": step}})
-        review_result = await reviewer.execute_task({"type": "review", "parameters": {"result": result}})
-        if not review_result:
-            logger.error(f"Review failed for step: {step}")
-            
-    # Request help
-    await executor.request_help(
-        {"type": "plan", "parameters": {"goal": "Design database schema"}},
-        "Planner1"
-    )
-    
-    # Demonstrate knowledge sharing
-    await planner.contribute_to_knowledge_graph("design_pattern", "Microservices architecture")
-    retrieved = await executor.recall_memory('design_pattern')
-    logger.info(f"\n[KNOWLEDGE] Executor retrieved design pattern: {retrieved}\n")
-    
-    # Visualize team structure
-    logger.info("\nTeam Communication Graph:")
-    project_team.visualize_communication_graph()
-    
-    # Save knowledge graph
-    gm.save_graph()
-    logger.info("\nDemo completed successfully!")
+    # Add agents to team
+    for agent in agents:
+        await project_team.add_agent(agent)
+
+    # Start agents and team
+    for agent in agents:
+        await agent.start()
+    await project_team.start()
+
+    try:
+        # Assign tasks
+        plan = await planner.execute_task({"type": "plan", "parameters": {"goal": "Build a web service"}})
+        
+        # Execute steps
+        for step in plan["steps"]:
+            result = await executor.execute_task({"type": "execute", "parameters": {"step": step}})
+            review_result = await reviewer.execute_task({"type": "review", "parameters": {"result": result}})
+            if not review_result:
+                logger.error(f"Review failed for step: {step}")
+                
+        # Request help
+        await executor.request_help(
+            {"type": "plan", "parameters": {"goal": "Design database schema"}},
+            "Planner1"
+        )
+        
+        # Demonstrate knowledge sharing
+        await planner.contribute_to_knowledge_graph("design_pattern", "Microservices architecture")
+        retrieved = await executor.recall_memory('design_pattern')
+        logger.info(f"\n[KNOWLEDGE] Executor retrieved design pattern: {retrieved}\n")
+        
+        # Visualize team structure
+        logger.info("\nTeam Communication Graph:")
+        project_team.visualize_communication_graph()
+        
+        # Save knowledge graph
+        gm.save_graph()
+        logger.info("\nDemo completed successfully!")
+
+    finally:
+        # Stop agents and team
+        for agent in agents:
+            await agent.stop()
+        await project_team.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
