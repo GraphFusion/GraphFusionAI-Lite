@@ -2,6 +2,8 @@ import threading
 import asyncio
 from typing import Dict, List, Callable, Any, Optional
 import logging
+from .persistence import AgentStateDB, AgentState
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ class Agent:
     """
     
     def __init__(self, agent_id: str, role: str, capabilities: Dict[str, Callable], 
-                 graph_manager, team=None):
+                 graph_manager, team=None, state_db: AgentStateDB = None):
         self.agent_id = agent_id
         self.role = role
         self.capabilities = capabilities
@@ -28,6 +30,12 @@ class Agent:
         self.graph_manager = graph_manager
         self.memory = {}
         self.task_queue = []
+        self.status = "idle"  # idle, busy, error
+        self.state_db = state_db
+        
+        # Load existing state if available
+        if state_db:
+            self.load_state()
         
         # Register agent in knowledge graph
         self.graph_manager.add_agent(self.agent_id, {"role": self.role})
@@ -115,16 +123,42 @@ class Agent:
         """Contribute knowledge to the shared graph"""
         self.graph_manager.add_knowledge(self.agent_id, key, value)
 
+    def load_state(self):
+        """Load agent state from database"""
+        if self.state_db:
+            state = self.state_db.load_state(self.agent_id)
+            if state:
+                self.status = state.status
+                # Note: Capabilities are functions so we can't directly restore
+                # We'll just store capability names for now
+                # Actual capabilities must be re-registered
+                self.memory = state.memory
+                
+    async def save_state(self):
+        """Save current agent state to database"""
+        if self.state_db:
+            state = AgentState(
+                agent_id=self.agent_id,
+                status=self.status,
+                capabilities=list(self.capabilities.keys()),
+                memory=self.memory,
+                last_updated=time.time()
+            )
+            self.state_db.save_state(state)
+
 # Example usage
 if __name__ == "__main__":
     from graph_manager import GraphManager
+    from persistence import AgentStateDB
     
     gm = GraphManager("graph_data.json")
-    agent1 = Agent("Agent1", "planner", {}, gm)
-    agent2 = Agent("Agent2", "executor", {}, gm)
+    state_db = AgentStateDB("agent_states.json")
+    agent1 = Agent("Agent1", "planner", {}, gm, state_db=state_db)
+    agent2 = Agent("Agent2", "executor", {}, gm, state_db=state_db)
     asyncio.run(agent1.assign_to_team(None))  # Assign to a team
     asyncio.run(agent2.assign_to_team(None))  # Assign to a team
     asyncio.run(agent1.send_message("Agent2", {"type": "help_request", "task": {"type": "data_processing"}}))
     asyncio.run(agent1.store_memory("task", "Optimize pipeline"))
     print(asyncio.run(agent1.recall_memory("task")))
     asyncio.run(agent1.contribute_to_knowledge_graph("strategy", "Divide and conquer"))
+    asyncio.run(agent1.save_state())
