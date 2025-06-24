@@ -1,7 +1,7 @@
 # GraphFusionAI-Lite: A Scalable Multi-Agent Collaboration Framework
 
-GraphFusionAI-Lite is a Python framework for building collaborative multi-agent systems using asynchronous programming and knowledge graphs. It enables AI agents to work together on complex tasks by providing structured communication, task delegation, and shared knowledge management.
-
+GraphFusionAI-Lite is a Python framework for multi-agent systems that actually works. Most agent frameworks are either toys that demo well or enterprise nightmares that take months to configure. This one scales from "two agents chatting" to "complex multi-team collaboration" without architectural rewrites.
+The core insight: agent coordination is a graph problem. Agents are nodes, communications are edges, knowledge flows through the network. Once you see it this way, everything else becomes obvious.
 ## Why GraphFusionAI-Lite?
 
 Modern AI systems often require multiple specialized agents working together. Traditional approaches face challenges with:
