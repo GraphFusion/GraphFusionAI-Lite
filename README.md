@@ -82,7 +82,7 @@ sequenceDiagram
 ```mermaid
 graph LR
     A[Agent1] -->|sent| C[Communication]
-    B[Agent2] <--|received| C
+    B[Agent2] -->|received| C
     A -->|produced| K[Knowledge]
     K -->|related| K2[More Knowledge]
 ```
