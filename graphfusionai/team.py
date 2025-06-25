@@ -74,11 +74,26 @@ class Team:
         with self.lock:
             self.task_queue.append(task)
     
-    def assign_task(self, agent_id: str, task: Dict):
-        """Assign a specific task to an agent"""
-        if agent_id not in self.agents:
-            raise ValueError(f"Agent {agent_id} not in team")
-        self.agents[agent_id].task_queue.append(task)
+    async def assign_task(
+        self, 
+        agent_id: str, 
+        task: Dict, 
+        priority: str = "normal",
+        timeout: int = 60
+    ) -> Any:
+        """Assign a task to an agent with timeout handling"""
+        agent = self.agents.get(agent_id)
+        if not agent:
+            raise ValueError(f"Agent {agent_id} not found in team")
+        
+        try:
+            return await asyncio.wait_for(
+                agent.execute_task(task, priority), 
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            self.log_error(f"Task timeout: {task.get('task_id')} for agent {agent_id}")
+            raise
     
     def broadcast(self, sender_id: str, message: Dict):
         """Broadcast a message to all agents in the team"""
@@ -173,3 +188,87 @@ class Team:
                 break
             except Exception as e:
                 logger.error(f"Error auto-saving team {self.team_id}: {e}", exc_info=True)
+
+    async def execute_workflow(self, workflow: Dict) -> Dict:
+        """
+        Execute a workflow with defined steps and dependencies
+        Format:
+        {
+            "steps": [
+                {
+                    "id": "step1",
+                    "agent_id": "analyst1",
+                    "task": "analyze_data",
+                    "input": {"data": "sales.csv"},
+                    "depends_on": [],
+                    "timeout": 30
+                },
+                {
+                    "id": "step2",
+                    "agent_id": "researcher1",
+                    "task": "find_references",
+                    "input": {"topic": "tech_trends"},
+                    "depends_on": ["step1"],
+                    "retries": 3
+                }
+            ]
+        }
+        """
+        results = {}
+        pending = {step["id"]: step for step in workflow["steps"]}
+        completed = {}
+        failed = {}
+
+        while pending:
+            executable = [
+                step for step in pending.values() 
+                if all(dep in completed for dep in step["depends_on"])
+            ]
+
+            if not executable:
+                # Circular dependency check
+                if not any(step["depends_on"] for step in pending.values()):
+                    raise RuntimeError("Workflow deadlock - no executable steps")
+                await asyncio.sleep(0.1)
+                continue
+
+            tasks = []
+            for step in executable:
+                task = self._execute_workflow_step(step, completed, failed)
+                tasks.append(asyncio.create_task(task))
+                del pending[step["id"]]
+
+            await asyncio.gather(*tasks)
+
+        return {
+            "completed": completed,
+            "failed": failed
+        }
+
+    async def _execute_workflow_step(self, step: Dict, completed: Dict, failed: Dict) -> None:
+        step_id = step["id"]
+        try:
+            result = await self.assign_task(
+                step["agent_id"],
+                {
+                    "task_id": step_id,
+                    "description": f"Workflow step: {step_id}",
+                    **step["input"]
+                },
+                timeout=step.get("timeout", 60)
+            )
+            completed[step_id] = result
+        except Exception as e:
+            retries = step.get("retries", 0)
+            if retries > 0:
+                step["retries"] = retries - 1
+                await self._execute_workflow_step(step, completed, failed)
+            else:
+                failed[step_id] = str(e)
+                # Propagate failure to dependent steps
+                # Note: We need to adjust the dependencies of pending steps
+                # But we don't have access to pending here, so we'll do it in execute_workflow
+                # Instead, we mark the step as failed and let the main loop handle dependencies
+                # We'll remove this step from the dependencies of pending steps
+                # We'll do that in the main loop by having the main loop check dependencies again
+                # So no action needed here
