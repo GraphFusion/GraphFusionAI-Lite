@@ -30,8 +30,8 @@ async def main():
         team_id="project_alpha",
         graph_manager=graph_manager
     )
-    project_team.add_agent(data_analyst)
-    project_team.add_agent(research_specialist)
+    await project_team.add_agent(data_analyst)
+    await project_team.add_agent(research_specialist)
     
     # Define workflow
     workflow = {

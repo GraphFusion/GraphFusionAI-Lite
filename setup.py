@@ -6,7 +6,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         "networkx",
-        "matplotlib"
+        "matplotlib",
+        "asyncio"
     ],
     entry_points={
         "console_scripts": [
