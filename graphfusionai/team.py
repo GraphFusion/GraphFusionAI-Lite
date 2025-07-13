@@ -192,32 +192,12 @@ class Team:
     async def execute_workflow(self, workflow: Dict) -> Dict:
         """
         Execute a workflow with defined steps and dependencies
-        Format:
-        {
-            "steps": [
-                {
-                    "id": "step1",
-                    "agent_id": "analyst1",
-                    "task": "analyze_data",
-                    "input": {"data": "sales.csv"},
-                    "depends_on": [],
-                    "timeout": 30
-                },
-                {
-                    "id": "step2",
-                    "agent_id": "researcher1",
-                    "task": "find_references",
-                    "input": {"topic": "tech_trends"},
-                    "depends_on": ["step1"],
-                    "retries": 3
-                }
-            ]
-        }
         """
         results = {}
         pending = {step["id"]: step for step in workflow["steps"]}
         completed = {}
         failed = {}
+        context = {}  # Store outputs of completed steps
 
         while pending:
             executable = [
@@ -234,7 +214,7 @@ class Team:
 
             tasks = []
             for step in executable:
-                task = self._execute_workflow_step(step, completed, failed)
+                task = self._execute_workflow_step(step, completed, failed, context)
                 tasks.append(asyncio.create_task(task))
                 del pending[step["id"]]
 
@@ -245,30 +225,38 @@ class Team:
             "failed": failed
         }
 
-    async def _execute_workflow_step(self, step: Dict, completed: Dict, failed: Dict) -> None:
+    def _resolve_templates(self, input_data: Dict, context: Dict) -> Dict:
+        """Replace {{variable}} with values from context"""
+        resolved = {}
+        for key, value in input_data.items():
+            if isinstance(value, str) and value.startswith("{{") and value.endswith("}}"):
+                var_name = value[2:-2].strip()
+                resolved[key] = context.get(var_name, value)
+            else:
+                resolved[key] = value
+        return resolved
+
+    async def _execute_workflow_step(self, step: Dict, completed: Dict, failed: Dict, context: Dict) -> None:
         step_id = step["id"]
         try:
+            # Resolve input templates
+            resolved_input = self._resolve_templates(step["input"], context)
+            
             result = await self.assign_task(
                 step["agent_id"],
                 {
                     "task_id": step_id,
                     "description": f"Workflow step: {step_id}",
-                    **step["input"]
+                    **resolved_input
                 },
                 timeout=step.get("timeout", 60)
             )
             completed[step_id] = result
+            context[step_id] = result  # Store result in context for future steps
         except Exception as e:
             retries = step.get("retries", 0)
             if retries > 0:
                 step["retries"] = retries - 1
-                await self._execute_workflow_step(step, completed, failed)
+                await self._execute_workflow_step(step, completed, failed, context)
             else:
                 failed[step_id] = str(e)
-                # Propagate failure to dependent steps
-                # Note: We need to adjust the dependencies of pending steps
-                # But we don't have access to pending here, so we'll do it in execute_workflow
-                # Instead, we mark the step as failed and let the main loop handle dependencies
-                # We'll remove this step from the dependencies of pending steps
-                # We'll do that in the main loop by having the main loop check dependencies again
-                # So no action needed here
