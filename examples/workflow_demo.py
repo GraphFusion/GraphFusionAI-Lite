@@ -90,5 +90,84 @@ async def main():
         logger.info("Stopping team")
         await project_team.stop()
 
+async def run_conditional_workflow_example():
+    """Demonstrate conditional workflow execution"""
+    logger.info("Running conditional workflow example")
+    
+    loader = Agent(
+        agent_id="loader",
+        role="Data Loader",
+        capabilities={
+            "load_data": lambda file: f"Loaded {file}",
+        },
+        graph_manager=graph_manager
+    )
+    
+    analyst = Agent(
+        agent_id="analyst",
+        role="Data Analyst",
+        capabilities={
+            "analyze_full": lambda data: f"Full analysis of {data}",
+            "analyze_basic": lambda data: f"Basic analysis of {data}",
+        },
+        graph_manager=graph_manager
+    )
+    
+    cleaner = Agent(
+        agent_id="cleaner",
+        role="Data Cleaner",
+        capabilities={
+            "clean_data": lambda data: f"Cleaned {data}",
+        },
+        graph_manager=graph_manager
+    )
+    
+    workflow = {
+        "steps": [
+            # Initial data preparation
+            {
+                "id": "data_load",
+                "agent_id": "loader",
+                "task": "load_data",
+                "input": {"file": "data.csv"}
+            },
+            
+            # Conditional check
+            {
+                "id": "quality_check",
+                "when": "results['data_load']['quality'] > 0.7",
+                "then": [
+                    {
+                        "id": "full_analysis",
+                        "agent_id": "analyst",
+                        "task": "analyze_full",
+                        "input": {"data": "{{data_load}}"},
+                        "depends_on": ["data_load"]
+                    }
+                ],
+                "else": [
+                    {
+                        "id": "cleanup",
+                        "agent_id": "cleaner",
+                        "task": "clean_data",
+                        "input": {"data": "{{data_load}}"},
+                        "depends_on": ["data_load"]
+                    },
+                    {
+                        "id": "basic_analysis",
+                        "agent_id": "analyst",
+                        "task": "analyze_basic",
+                        "input": {"data": "{{cleanup}}"},
+                        "depends_on": ["cleanup"]
+                    }
+                ]
+            }
+        ]
+    }
+    
+    team = Team("DemoTeam", {"loader": loader, "analyst": analyst, "cleaner": cleaner})
+    await team.execute_workflow(workflow)
+
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(run_conditional_workflow_example())

@@ -39,6 +39,65 @@ async def review_work(result: str) -> bool:
     logger.info(f"Reviewing: {result}")
     return "error" not in result.lower()
 
+async def run_advanced_workflow():
+    """Showcase combined conditional and parallel execution"""
+    logger.info("Running advanced workflow with conditionals and parallel steps")
+    
+    workflow = {
+        "steps": [
+            # Initial research phase
+            {
+                "id": "research",
+                "agent_id": "researcher",
+                "task": "conduct_research"
+            },
+            
+            # Conditional branch based on research findings
+            {
+                "id": "approach_decision",
+                "when": "results['research']['complexity'] > 5",
+                "then": [
+                    # Parallel complex implementation
+                    {
+                        "id": "design",
+                        "agent_id": "designer",
+                        "task": "create_detailed_design",
+                        "parallel": True,
+                        "depends_on": ["research"]
+                    },
+                    {
+                        "id": "prototype",
+                        "agent_id": "developer",
+                        "task": "build_prototype",
+                        "parallel": True,
+                        "depends_on": ["research"]
+                    }
+                ],
+                "else": [
+                    # Simpler serial implementation
+                    {
+                        "id": "simple_design",
+                        "agent_id": "designer",
+                        "task": "create_simple_design",
+                        "depends_on": ["research"]
+                    }
+                ]
+            },
+            
+            # Final review step
+            {
+                "id": "review",
+                "agent_id": "reviewer",
+                "task": "conduct_review",
+                "depends_on": ["design", "prototype", "simple_design"],
+                "when": "any(step in completed for step in ['design', 'prototype', 'simple_design'])"
+            }
+        ]
+    }
+    
+    team = create_sample_team()
+    await team.execute_workflow(workflow)
+
 async def main():
     # Initialize the graph manager
     gm = GraphManager()
@@ -91,6 +150,8 @@ async def main():
         # Save knowledge graph
         gm.save_graph()
         logger.info("\nDemo completed successfully!")
+
+        await run_advanced_workflow()
 
     finally:
         # Stop agents and team
