@@ -39,13 +39,20 @@ async def main():
         )
         
         logger.info("Creating team and adding agents")
+        # Create team with proper parameters
         project_team = Team(
             team_id="project_alpha",
-            graph_manager=graph_manager
+            graph_manager=graph_manager,
+            state_db=None,
+            auto_save_interval=60
         )
-        logger.debug("Team created")
-        await project_team.add_agent(data_analyst)
-        await project_team.add_agent(research_specialist)
+        
+        # Add agents after creation
+        project_team.agents = {
+            "analyst1": data_analyst,
+            "researcher1": research_specialist
+        }
+        logger.debug(f"Team initialized with {len(project_team.agents)} agents")
         
         logger.info("Defining workflow")
         workflow = {
