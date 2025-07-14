@@ -10,6 +10,7 @@ import sys
 import time
 import asyncio
 import logging
+import random
 from graphfusionai.graph_manager import GraphManager
 from graphfusionai.agent import Agent
 from graphfusionai.team import Team
@@ -45,6 +46,48 @@ async def review_work(result: str) -> bool:
     """Review work result"""
     logger.info(f"Reviewing: {result}")
     return "error" not in result.lower()
+
+def create_sample_team():
+    """Create a sample team with agents for the advanced workflow demo"""
+    gm = GraphManager()
+    
+    agents = {
+        "researcher": Agent(
+            agent_id="researcher",
+            role="Researcher",
+            capabilities={
+                "conduct_research": lambda: {"complexity": random.randint(1, 10)}
+            },
+            graph_manager=gm
+        ),
+        "designer": Agent(
+            agent_id="designer",
+            role="Designer",
+            capabilities={
+                "create_detailed_design": lambda: "Detailed design created",
+                "create_simple_design": lambda: "Simple design created"
+            },
+            graph_manager=gm
+        ),
+        "developer": Agent(
+            agent_id="developer",
+            role="Developer",
+            capabilities={
+                "build_prototype": lambda: "Prototype built"
+            },
+            graph_manager=gm
+        ),
+        "reviewer": Agent(
+            agent_id="reviewer",
+            role="Reviewer",
+            capabilities={
+                "conduct_review": lambda result: f"Reviewed: {result}"
+            },
+            graph_manager=gm
+        )
+    }
+    
+    return Team("AdvancedWorkflowTeam", agents, graph_manager=gm)
 
 async def run_advanced_workflow():
     """Showcase combined conditional and parallel execution"""
