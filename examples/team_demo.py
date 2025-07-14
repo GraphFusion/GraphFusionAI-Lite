@@ -68,11 +68,30 @@ async def main():
         
         # Execute steps
         for step in plan["steps"]:
+            if step in ["Design", "Implement"]:
+                continue
             result = await executor.execute_task({"type": "execute", "parameters": {"step": step}})
             review_result = await reviewer.execute_task({"type": "review", "parameters": {"result": result}})
             if not review_result:
                 logger.error(f"Review failed for step: {step}")
                 
+        # Assign tasks with parallel execution
+        design_task = executor.execute_task({
+            "type": "execute", 
+            "parameters": {"step": "Design"}
+        })
+        implement_task = executor.execute_task({
+            "type": "execute", 
+            "parameters": {"step": "Implement"}
+        })
+        design_result, implement_result = await asyncio.gather(design_task, implement_task)
+        
+        # Review must happen serially after parallel tasks
+        review_result = await reviewer.execute_task({
+            "type": "review", 
+            "parameters": {"result": f"Design: {design_result}, Implementation: {implement_result}"}
+        })
+        
         # Request help
         await executor.request_help(
             {"type": "plan", "parameters": {"goal": "Design database schema"}},

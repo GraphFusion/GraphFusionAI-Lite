@@ -192,6 +192,8 @@ class Team:
     async def execute_workflow(self, workflow: Dict) -> Dict:
         """
         Execute a workflow with defined steps and dependencies
+        
+        Now supports parallel execution of independent steps when marked with parallel=True
         """
         results = {}
         pending = {step["id"]: step for step in workflow["steps"]}
@@ -200,25 +202,40 @@ class Team:
         context = {}  # Store outputs of completed steps
 
         while pending:
+            # Find executable steps (all dependencies met)
             executable = [
                 step for step in pending.values() 
-                if all(dep in completed for dep in step["depends_on"])
+                if all(dep in completed for dep in step.get("depends_on", []))
             ]
 
             if not executable:
                 # Circular dependency check
-                if not any(step["depends_on"] for step in pending.values()):
+                if not any(step.get("depends_on") for step in pending.values()):
                     raise RuntimeError("Workflow deadlock - no executable steps")
                 await asyncio.sleep(0.1)
                 continue
 
-            tasks = []
-            for step in executable:
-                task = self._execute_workflow_step(step, completed, failed, context)
-                tasks.append(asyncio.create_task(task))
-                del pending[step["id"]]
+            # Group steps by parallel flag
+            parallel_steps = [s for s in executable if s.get("parallel", False)]
+            serial_steps = [s for s in executable if not s.get("parallel", False)]
 
-            await asyncio.gather(*tasks)
+            # Execute parallel steps first (if any)
+            if parallel_steps:
+                tasks = []
+                for step in parallel_steps:
+                    task = self._execute_workflow_step(step, completed, failed, context)
+                    tasks.append(asyncio.create_task(task))
+                    del pending[step["id"]]
+                
+                try:
+                    await asyncio.gather(*tasks)
+                except Exception as e:
+                    logger.error(f"Parallel step failed: {e}")
+
+            # Then execute serial steps
+            for step in serial_steps:
+                await self._execute_workflow_step(step, completed, failed, context)
+                del pending[step["id"]]
 
         return {
             "completed": completed,
