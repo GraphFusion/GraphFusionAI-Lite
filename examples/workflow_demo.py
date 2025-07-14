@@ -55,6 +55,7 @@ async def main():
                     "agent_id": "analyst1",
                     "task": "analyze_data",
                     "input": {"data": "Q3_sales.csv"},
+                    "timeout": 30,  # 30 second timeout
                     "depends_on": []
                 },
                 {
@@ -62,6 +63,7 @@ async def main():
                     "agent_id": "researcher1",
                     "task": "find_references",
                     "input": {"topic": "market_trends"},
+                    "timeout": 45,
                     "depends_on": ["sales_analysis"],
                     "retries": 2
                 },
@@ -70,6 +72,7 @@ async def main():
                     "agent_id": "analyst1",
                     "task": "generate_report",
                     "input": {"analysis": "{{sales_analysis}}"},
+                    "timeout": 30,
                     "depends_on": ["market_research"]
                 }
             ]
@@ -116,11 +119,15 @@ async def run_conditional_workflow_example():
     """Demonstrate conditional workflow execution"""
     logger.info("Running conditional workflow example")
     
+    # Initialize graph manager
+    graph_manager = GraphManager()
+    logger.debug("Graph manager initialized")
+    
     loader = Agent(
         agent_id="loader",
         role="Data Loader",
         capabilities={
-            "load_data": lambda file: f"Loaded {file}",
+            "load_data": lambda file: {"content": f"Loaded {file}", "quality": 0.9}
         },
         graph_manager=graph_manager
     )
