@@ -189,15 +189,24 @@ class Team:
             except Exception as e:
                 logger.error(f"Error auto-saving team {self.team_id}: {e}", exc_info=True)
 
-    async def execute_workflow(self, workflow: Dict) -> Dict:
+    async def execute_workflow(self, workflow: Dict, timeout: Optional[float] = 300) -> Dict:
         """
-        Execute workflow with support for conditional steps and branching
-        
-        Now handles:
-        - when: Condition expression
-        - then: Steps to execute if true
-        - else: Steps to execute if false (optional)
+        Execute workflow with timeout protection
+        Args:
+            workflow: Workflow definition
+            timeout: Maximum execution time in seconds (default 5 minutes)
         """
+        try:
+            return await asyncio.wait_for(
+                self._execute_workflow_internal(workflow),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Workflow timed out after {timeout} seconds")
+            return {"status": "timeout", "completed": {}, "failed": {}}
+            
+    async def _execute_workflow_internal(self, workflow: Dict) -> Dict:
+        """Actual workflow implementation"""
         results = {}
         pending = {step["id"]: step for step in workflow["steps"]}
         completed = {}

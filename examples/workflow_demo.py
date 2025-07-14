@@ -189,9 +189,14 @@ async def run_conditional_workflow_example():
     
     team = Team("DemoTeam", {"loader": loader, "analyst": analyst, "cleaner": cleaner})
     try:
+        # Execute workflow with 60 second timeout
         logger.info("Executing workflow")
-        results = await team.execute_workflow(workflow)
-        logger.info(f"Workflow completed. Results: {results}")
+        results = await team.execute_workflow(workflow, timeout=60)
+        
+        if results.get("status") == "timeout":
+            logger.error("Workflow timed out!")
+        else:
+            logger.info(f"Workflow completed. Results: {results}")
     except asyncio.CancelledError:
         logger.error("Workflow execution was cancelled")
     except Exception as e:
