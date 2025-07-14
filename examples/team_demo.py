@@ -9,11 +9,18 @@ how they collaborate through communication and knowledge sharing.
 import sys
 import time
 import asyncio
+import logging
 from graphfusionai.graph_manager import GraphManager
 from graphfusionai.agent import Agent
 from graphfusionai.team import Team
 from graphfusionai.task import Task
 from graphfusionai.logger import FRAMEWORK_LOGGER as logger
+
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s | %(levelname)s | %(message)s'
+)
 
 # Initialize logger
 logger.info(f"Python version: {sys.version}")
