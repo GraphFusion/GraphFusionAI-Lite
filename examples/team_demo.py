@@ -9,11 +9,19 @@ how they collaborate through communication and knowledge sharing.
 import sys
 import time
 import asyncio
+import logging
+import random
 from graphfusionai.graph_manager import GraphManager
 from graphfusionai.agent import Agent
 from graphfusionai.team import Team
 from graphfusionai.task import Task
 from graphfusionai.logger import FRAMEWORK_LOGGER as logger
+
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s | %(levelname)s | %(message)s'
+)
 
 # Initialize logger
 logger.info(f"Python version: {sys.version}")
@@ -38,6 +46,107 @@ async def review_work(result: str) -> bool:
     """Review work result"""
     logger.info(f"Reviewing: {result}")
     return "error" not in result.lower()
+
+def create_sample_team():
+    """Create a sample team with agents for the advanced workflow demo"""
+    gm = GraphManager()
+    
+    agents = {
+        "researcher": Agent(
+            agent_id="researcher",
+            role="Researcher",
+            capabilities={
+                "conduct_research": lambda: {"complexity": random.randint(1, 10)}
+            },
+            graph_manager=gm
+        ),
+        "designer": Agent(
+            agent_id="designer",
+            role="Designer",
+            capabilities={
+                "create_detailed_design": lambda: "Detailed design created",
+                "create_simple_design": lambda: "Simple design created"
+            },
+            graph_manager=gm
+        ),
+        "developer": Agent(
+            agent_id="developer",
+            role="Developer",
+            capabilities={
+                "build_prototype": lambda: "Prototype built"
+            },
+            graph_manager=gm
+        ),
+        "reviewer": Agent(
+            agent_id="reviewer",
+            role="Reviewer",
+            capabilities={
+                "conduct_review": lambda result: f"Reviewed: {result}"
+            },
+            graph_manager=gm
+        )
+    }
+    
+    return Team("AdvancedWorkflowTeam", agents, graph_manager=gm)
+
+async def run_advanced_workflow():
+    """Showcase combined conditional and parallel execution"""
+    logger.info("Running advanced workflow with conditionals and parallel steps")
+    
+    workflow = {
+        "steps": [
+            # Initial research phase
+            {
+                "id": "research",
+                "agent_id": "researcher",
+                "task": "conduct_research"
+            },
+            
+            # Conditional branch based on research findings
+            {
+                "id": "approach_decision",
+                "when": "results['research']['complexity'] > 5",
+                "then": [
+                    # Parallel complex implementation
+                    {
+                        "id": "design",
+                        "agent_id": "designer",
+                        "task": "create_detailed_design",
+                        "parallel": True,
+                        "depends_on": ["research"]
+                    },
+                    {
+                        "id": "prototype",
+                        "agent_id": "developer",
+                        "task": "build_prototype",
+                        "parallel": True,
+                        "depends_on": ["research"]
+                    }
+                ],
+                "else": [
+                    # Simpler serial implementation
+                    {
+                        "id": "simple_design",
+                        "agent_id": "designer",
+                        "task": "create_simple_design",
+                        "depends_on": ["research"]
+                    }
+                ]
+            },
+            
+            # Final review step
+            {
+                "id": "review",
+                "agent_id": "reviewer",
+                "task": "conduct_review",
+                "depends_on": ["design", "prototype", "simple_design"],
+                "when": "any(step in completed for step in ['design', 'prototype', 'simple_design'])"
+            }
+        ]
+    }
+    
+    team = create_sample_team()
+    await team.execute_workflow(workflow)
 
 async def main():
     # Initialize the graph manager
@@ -91,6 +200,8 @@ async def main():
         # Save knowledge graph
         gm.save_graph()
         logger.info("\nDemo completed successfully!")
+
+        await run_advanced_workflow()
 
     finally:
         # Stop agents and team

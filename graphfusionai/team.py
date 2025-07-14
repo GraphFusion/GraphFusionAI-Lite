@@ -189,22 +189,50 @@ class Team:
             except Exception as e:
                 logger.error(f"Error auto-saving team {self.team_id}: {e}", exc_info=True)
 
-    async def execute_workflow(self, workflow: Dict) -> Dict:
+    async def execute_workflow(self, workflow: Dict, timeout: Optional[float] = 300) -> Dict:
         """
-        Execute a workflow with defined steps and dependencies
+        Execute workflow with timeout protection
+        Args:
+            workflow: Workflow definition
+            timeout: Maximum execution time in seconds (default 5 minutes)
         """
+        try:
+            return await asyncio.wait_for(
+                self._execute_workflow_internal(workflow),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Workflow timed out after {timeout} seconds")
+            return {"status": "timeout", "completed": {}, "failed": {}}
+            
+    async def _execute_workflow_internal(self, workflow: Dict) -> Dict:
+        """Actual workflow implementation"""
         results = {}
         pending = {step["id"]: step for step in workflow["steps"]}
         completed = {}
         failed = {}
-        context = {}  # Store outputs of completed steps
+        context = {}
 
         while pending:
+            # Process conditional steps first
+            conditional_steps = [s for s in pending.values() if "when" in s]
+            for step in conditional_steps:
+                if await self._evaluate_condition(step["when"], context):
+                    new_steps = step.get("then", [])
+                else:
+                    new_steps = step.get("else", [])
+                
+                # Replace conditional step with its branches
+                del pending[step["id"]]
+                for new_step in new_steps:
+                    pending[new_step["id"]] = new_step
+
+            # Then proceed with normal execution
             executable = [
                 step for step in pending.values() 
-                if all(dep in completed for dep in step["depends_on"])
+                if all(dep in completed for dep in step.get("depends_on", []))
+                and "when" not in step  # Skip unprocessed conditionals
             ]
-
             if not executable:
                 # Circular dependency check
                 if not any(step["depends_on"] for step in pending.values()):
@@ -236,12 +264,46 @@ class Team:
                 resolved[key] = value
         return resolved
 
+    async def _evaluate_condition(self, condition: str, context: Dict) -> bool:
+        """
+        Safely evaluate a workflow condition against execution context
+        
+        Args:
+            condition: String expression to evaluate
+            context: Current workflow context dictionary
+            
+        Returns:
+            bool: True if condition evaluates truthy, False otherwise
+        """
+        try:
+            # Restricted globals for safety
+            safe_globals = {
+                '__builtins__': {
+                    'bool': bool,
+                    'int': int,
+                    'float': float,
+                    'str': str,
+                    'len': len,
+                    'min': min,
+                    'max': max
+                }
+            }
+            return bool(eval(condition, safe_globals, context))
+        except Exception as e:
+            logger.error(f"Condition evaluation failed: {e}")
+            return False
+
     async def _execute_workflow_step(self, step: Dict, completed: Dict, failed: Dict, context: Dict) -> None:
         step_id = step["id"]
         try:
             # Resolve input templates
             resolved_input = self._resolve_templates(step["input"], context)
             
+            if "condition" in step:
+                if not await self._evaluate_condition(step["condition"], context):
+                    logger.info(f"Skipping step {step_id} due to unmet condition")
+                    return
+
             result = await self.assign_task(
                 step["agent_id"],
                 {
