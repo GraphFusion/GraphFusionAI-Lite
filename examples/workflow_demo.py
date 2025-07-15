@@ -158,6 +158,21 @@ async def run_conditional_workflow_example():
         graph_manager=graph_manager
     )
     
+    # Create team with proper parameters
+    team = Team(
+        team_id="DemoTeam",
+        graph_manager=graph_manager,
+        state_db=None,
+        auto_save_interval=60
+    )
+    
+    # Add agents
+    team.agents = {
+        "loader": loader,
+        "analyst": analyst,
+        "cleaner": cleaner
+    }
+    
     workflow = {
         "steps": [
             # Initial data preparation
@@ -201,7 +216,6 @@ async def run_conditional_workflow_example():
         ]
     }
     
-    team = Team("DemoTeam", {"loader": loader, "analyst": analyst, "cleaner": cleaner})
     try:
         # Execute workflow with 60 second timeout
         logger.info("Executing workflow")
