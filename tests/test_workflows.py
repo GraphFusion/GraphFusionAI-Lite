@@ -1,5 +1,6 @@
-import asyncio
 import pytest
+import pytest_asyncio
+import asyncio
 from graphfusionai import Team, Agent
 from graphfusionai.graph_manager import GraphManager
 
@@ -13,8 +14,20 @@ def sample_team():
         state_db=None
     )
     team.agents = {
-        "agent1": Agent("agent1", "Test Role", {"execute": lambda x: x}),
-        "agent2": Agent("agent2", "Test Role", {"execute": lambda x: x})
+        "agent1": Agent(
+            agent_id="agent1",
+            role="Test Role",
+            capabilities={"execute": lambda x: x},
+            graph_manager=graph_manager,
+            team=team
+        ),
+        "agent2": Agent(
+            agent_id="agent2",
+            role="Test Role",
+            capabilities={"execute": lambda x: x},
+            graph_manager=graph_manager,
+            team=team
+        )
     }
     return team
 
@@ -58,7 +71,7 @@ async def test_conditional_workflow(sample_team):
 async def test_workflow_timeout(sample_team):
     """Verify workflow timeout handling"""
     # Agent with a long-running task
-    slow_agent = Agent("slow", "Test Role", {"slow_task": lambda: asyncio.sleep(10)})
+    slow_agent = Agent("slow", "Test Role", {"slow_task": lambda: asyncio.sleep(10)}, team=sample_team)
     sample_team.agents["slow"] = slow_agent
     
     workflow = {
