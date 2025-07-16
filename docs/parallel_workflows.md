@@ -1,13 +1,32 @@
-# Parallel Workflow Execution
+# Parallel and Conditional Workflows
 
 ## Overview
-GraphFusionAI-Lite now supports parallel execution of independent workflow steps. This feature can significantly improve performance for workflows with independent tasks.
+GraphFusionAI-Lite now supports parallel execution of independent workflow steps and conditional branching.
+
+## Key Features
+- **Parallel Execution**: Steps marked with `"parallel": true`
+- **Conditional Workflows**: `when`/`then`/`else` syntax
+- **Timeout Handling**: Global and per-task timeouts
 
 ## Key Concepts
 1. **Parallel Flag**: Add `"parallel": true` to workflow steps that can run concurrently
 2. **Dependencies**: Parallel steps still respect dependency chains
 3. **Execution Order**: Parallel steps execute before serial steps in each cycle
 4. **Error Handling**: Failed parallel steps trigger retries (if configured)
+
+## Team Initialization
+```python
+project_team = Team(
+    team_id="project_alpha",
+    graph_manager=graph_manager,
+    state_db=None,
+    auto_save_interval=60
+)
+project_team.agents = {
+    "analyst1": data_analyst,
+    "researcher1": research_specialist
+}
+```
 
 ## Example
 ```python
@@ -40,12 +59,18 @@ workflow = {
 ```
 
 ## Best Practices
-- Use for independent, CPU-intensive tasks
-- Limit concurrent steps based on available agents
-- Monitor system resources during parallel execution
-- Add timeout handling for critical paths
+1. Initialize GraphManager first
+2. Set reasonable timeouts (30-60s per task)
+3. Use parallel execution for independent tasks
+4. Handle workflow cancellation gracefully
+5. Monitor system resources during parallel execution
 
 ## Limitations
 - Steps must be truly independent (no shared state)
 - Debugging can be more complex
 - Requires careful error handling
+
+## Timeout Configuration
+- Global workflow timeout (default: 300s)
+- Per-task timeouts (recommended: 30-60s)
+- Timeout error handling
