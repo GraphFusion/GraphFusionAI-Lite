@@ -43,26 +43,39 @@ async def main():
     workflow = {
         "steps": [
             {
-                "id": "sales_analysis",
+                "id": "data_prep",
                 "agent_id": "analyst1",
                 "task": "analyze_data",
-                "input": {"data": "Q3_sales.csv"},
+                "input": {"data": "raw_dataset.csv"},
                 "depends_on": []
             },
+            # Parallel processing steps
             {
-                "id": "market_research",
-                "agent_id": "researcher1",
-                "task": "find_references",
-                "input": {"topic": "market_trends"},
-                "depends_on": ["sales_analysis"],
-                "retries": 2
+                "id": "feature_eng",
+                "agent_id": "analyst1",
+                "task": "analyze_data",
+                "parallel": True,
+                "input": {"data": "{{data_prep}}"},
+                "depends_on": ["data_prep"]
             },
             {
-                "id": "report_generation",
+                "id": "stats_analysis",
+                "agent_id": "analyst1",
+                "task": "analyze_data",
+                "parallel": True,
+                "input": {"data": "{{data_prep}}"},
+                "depends_on": ["data_prep"]
+            },
+            # Final serial step
+            {
+                "id": "report_gen",
                 "agent_id": "analyst1",
                 "task": "generate_report",
-                "input": {"analysis": "{{sales_analysis}}"},
-                "depends_on": ["market_research"]
+                "input": {
+                    "analysis": "{{feature_eng}}",
+                    "stats": "{{stats_analysis}}"
+                },
+                "depends_on": ["feature_eng", "stats_analysis"]
             }
         ]
     }

@@ -16,6 +16,45 @@ GraphFusionAI-Lite solves these by providing:
 3. **Team-based Collaboration**: Agents can form dynamic teams for task delegation
 4. **Extensible Architecture**: Easy to add new agent capabilities and behaviors
 
+## Features
+
+- Multi-agent collaboration framework
+- Knowledge graph integration
+- **Parallel workflow execution** ([docs](docs/parallel_workflows.md))
+- Visual communication graphs
+
+## Quick Start: Parallel Workflow
+
+```python
+# Create workflow with parallel steps
+workflow = {
+    "steps": [
+        {
+            "id": "prep",
+            "agent_id": "agent1",
+            "task": "prepare",
+            "input": {"data": "raw"}
+        },
+        {
+            "id": "analyze",
+            "agent_id": "agent2",
+            "task": "process",
+            "parallel": True,
+            "input": {"data": "{{prep}}"},
+            "depends_on": ["prep"]
+        },
+        {
+            "id": "validate",
+            "agent_id": "agent3",
+            "task": "check",
+            "parallel": True,
+            "input": {"data": "{{prep}}"},
+            "depends_on": ["prep"]
+        }
+    ]
+}
+```
+
 ## Core Concepts
 
 ### Agents
