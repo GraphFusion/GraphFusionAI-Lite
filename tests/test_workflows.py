@@ -88,7 +88,7 @@ async def test_parallel_execution_with_dependencies(sample_team):
                 "task": "execute",
                 "parallel": True,
                 "input": {"value": 1},
-                "timeout": 1
+                "timeout": 0.5
             },
             {
                 "id": "step2",
@@ -96,7 +96,7 @@ async def test_parallel_execution_with_dependencies(sample_team):
                 "task": "execute", 
                 "parallel": True,
                 "input": {"value": 2},
-                "timeout": 1
+                "timeout": 0.5
             },
             {
                 "id": "step3",
@@ -104,12 +104,13 @@ async def test_parallel_execution_with_dependencies(sample_team):
                 "task": "execute",
                 "depends_on": ["step1", "step2"],
                 "input": {"value": 3},
-                "timeout": 1
+                "timeout": 0.5
             }
         ]
     }
 
-    results = await sample_team.execute_workflow(workflow)
+    # Set shorter overall timeout
+    results = await sample_team.execute_workflow(workflow, timeout=5)
     
     # Verify all steps completed
     assert results["status"] == "completed"
@@ -131,7 +132,7 @@ async def test_mixed_workflow(sample_team):
                 "task": "execute",
                 "parallel": True,
                 "input": {"value": 1},
-                "timeout": 1
+                "timeout": 0.5
             },
             {
                 "id": "serial1",
@@ -139,7 +140,7 @@ async def test_mixed_workflow(sample_team):
                 "task": "execute",
                 "depends_on": ["parallel1"],
                 "input": {"value": 2}, 
-                "timeout": 1
+                "timeout": 0.5
             },
             {
                 "id": "parallel2",
@@ -148,12 +149,13 @@ async def test_mixed_workflow(sample_team):
                 "parallel": True,
                 "depends_on": ["serial1"],
                 "input": {"value": 3},
-                "timeout": 1
+                "timeout": 0.5
             }
         ]
     }
 
-    results = await sample_team.execute_workflow(workflow)
+    # Set shorter overall timeout
+    results = await sample_team.execute_workflow(workflow, timeout=5)
     
     # Verify execution order
     assert results["status"] == "completed"
