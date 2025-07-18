@@ -192,19 +192,30 @@ class Team:
     async def execute_workflow(self, workflow: Dict, timeout: Optional[float] = 300) -> Dict:
         """
         Execute workflow with timeout protection
-        Args:
-            workflow: Workflow definition
-            timeout: Maximum execution time in seconds (default 5 minutes)
+        Returns:
+            Dict: {
+                'status': 'completed'|'partial'|'failed'|'timeout',
+                'completed': {step_id: result},
+                'failed': {step_id: error}
+            }
         """
         try:
-            return await asyncio.wait_for(
+            results = await asyncio.wait_for(
                 self._execute_workflow_internal(workflow),
                 timeout=timeout
             )
+            # Determine final status
+            if not results["failed"]:
+                results["status"] = "completed"
+            elif results["completed"]:
+                results["status"] = "partial"
+            else:
+                results["status"] = "failed"
+            return results
         except asyncio.TimeoutError:
             logger.error(f"Workflow timed out after {timeout} seconds")
             return {"status": "timeout", "completed": {}, "failed": {}}
-            
+
     async def _execute_workflow_internal(self, workflow: Dict) -> Dict:
         """Actual workflow implementation"""
         results = {}
@@ -304,7 +315,8 @@ class Team:
                     logger.info(f"Skipping step {step_id} due to unmet condition")
                     return
 
-            result = await self.assign_task(
+            # Execute task and ensure result is properly formatted
+            task_result = await self.assign_task(
                 step["agent_id"],
                 {
                     "task_id": step_id,
@@ -313,8 +325,13 @@ class Team:
                 },
                 timeout=step.get("timeout", 60)
             )
-            completed[step_id] = result
-            context[step_id] = result  # Store result in context for future steps
+            
+            # Ensure result is a dictionary
+            if not isinstance(task_result, dict):
+                task_result = {"result": task_result}
+                
+            completed[step_id] = task_result
+            context[step_id] = task_result
         except Exception as e:
             retries = step.get("retries", 0)
             if retries > 0:
