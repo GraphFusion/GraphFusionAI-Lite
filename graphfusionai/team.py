@@ -218,39 +218,44 @@ class Team:
 
     async def _execute_workflow_internal(self, workflow: Dict) -> Dict:
         """Actual workflow implementation"""
-        results = {}
+        logger.debug(f"Starting workflow execution with {len(workflow['steps'])} steps")
         pending = {step["id"]: step for step in workflow["steps"]}
         completed = {}
         failed = {}
         context = {}
 
         while pending:
+            logger.debug(f"Pending steps: {list(pending.keys())}")
+            
             # Process conditional steps first
-            conditional_steps = [s for s in pending.values() if "when" in s]
-            for step in conditional_steps:
-                if await self._evaluate_condition(step["when"], context):
-                    new_steps = step.get("then", [])
-                else:
-                    new_steps = step.get("else", [])
-                
-                # Replace conditional step with its branches
-                del pending[step["id"]]
-                for new_step in new_steps:
-                    pending[new_step["id"]] = new_step
+            conditionals = [s for s in pending.values() if "when" in s]
+            for step in conditionals:
+                if all(dep in completed for dep in step.get("depends_on", [])):
+                    logger.debug(f"Evaluating conditional step {step['id']}")
+                    condition_met = await self._evaluate_condition(step["when"], context)
+                    branch_steps = step["then"] if condition_met else step.get("else", [])
+                    
+                    logger.debug(f"Condition {'met' if condition_met else 'not met'} for {step['id']}")
+                    del pending[step["id"]]
+                    for new_step in branch_steps:
+                        pending[new_step["id"]] = new_step
 
-            # Then proceed with normal execution
+            # Find executable steps (dependencies met, no condition)
             executable = [
-                step for step in pending.values() 
+                step for step in pending.values()
                 if all(dep in completed for dep in step.get("depends_on", []))
-                and "when" not in step  # Skip unprocessed conditionals
+                and "when" not in step
             ]
+
             if not executable:
-                # Circular dependency check
-                if not any(step["depends_on"] for step in pending.values()):
+                if not any(step.get("depends_on") for step in pending.values()):
+                    logger.error("Workflow deadlock - no executable steps")
                     raise RuntimeError("Workflow deadlock - no executable steps")
                 await asyncio.sleep(0.1)
                 continue
 
+            # Execute all eligible steps
+            logger.debug(f"Executing steps: {[s['id'] for s in executable]}")
             tasks = []
             for step in executable:
                 task = self._execute_workflow_step(step, completed, failed, context)
@@ -258,11 +263,10 @@ class Team:
                 del pending[step["id"]]
 
             await asyncio.gather(*tasks)
+            logger.debug(f"Completed batch: {[s['id'] for s in executable]}")
 
-        return {
-            "completed": completed,
-            "failed": failed
-        }
+        logger.debug(f"Workflow completed with {len(completed)} successful steps and {len(failed)} failures")
+        return {"completed": completed, "failed": failed}
 
     def _resolve_templates(self, input_data: Dict, context: Dict) -> Dict:
         """Replace {{variable}} with values from context"""
@@ -306,36 +310,21 @@ class Team:
 
     async def _execute_workflow_step(self, step: Dict, completed: Dict, failed: Dict, context: Dict) -> None:
         step_id = step["id"]
-        try:
-            # Resolve input templates
-            resolved_input = self._resolve_templates(step["input"], context)
-            
-            if "condition" in step:
-                if not await self._evaluate_condition(step["condition"], context):
-                    logger.info(f"Skipping step {step_id} due to unmet condition")
-                    return
+        agent = self.agents.get(step["agent_id"])
+        
+        if not agent:
+            failed[step_id] = {"error": f"Agent {step['agent_id']} not found"}
+            return
 
-            # Execute task and ensure result is properly formatted
-            task_result = await self.assign_task(
-                step["agent_id"],
-                {
-                    "task_id": step_id,
-                    "description": f"Workflow step: {step_id}",
-                    **resolved_input
-                },
-                timeout=step.get("timeout", 60)
+        try:
+            # Add per-step timeout handling
+            result = await asyncio.wait_for(
+                agent.execute_capability(step["task"], step.get("input", {})),
+                timeout=step.get("timeout", 1.0)
             )
-            
-            # Ensure result is a dictionary
-            if not isinstance(task_result, dict):
-                task_result = {"result": task_result}
-                
-            completed[step_id] = task_result
-            context[step_id] = task_result
+            completed[step_id] = result
+            context[step_id] = result.get("result")
+        except asyncio.TimeoutError:
+            failed[step_id] = {"error": f"Step timed out after {step.get('timeout', 1.0)}s"}
         except Exception as e:
-            retries = step.get("retries", 0)
-            if retries > 0:
-                step["retries"] = retries - 1
-                await self._execute_workflow_step(step, completed, failed, context)
-            else:
-                failed[step_id] = str(e)
+            failed[step_id] = {"error": str(e)}
