@@ -191,7 +191,19 @@ class Team:
 
     async def execute_workflow(self, workflow: Dict, timeout: Optional[float] = 300) -> Dict:
         """
-        Execute workflow with timeout protection
+        Execute a workflow with defined steps and dependencies
+        
+        Supports:
+        - Conditional execution with 'when' clauses
+        - Parallel execution of independent steps when marked with parallel=True
+        - Template resolution for dynamic inputs using {{variable}} syntax
+        - Timeout protection for entire workflow
+        - Dependency management between steps
+        
+        Args:
+            workflow: Workflow definition with steps
+            timeout: Optional timeout for entire workflow in seconds
+            
         Returns:
             Dict: {
                 'status': 'completed'|'partial'|'failed'|'timeout',
@@ -254,16 +266,29 @@ class Team:
                 await asyncio.sleep(0.1)
                 continue
 
-            # Execute all eligible steps
-            logger.debug(f"Executing steps: {[s['id'] for s in executable]}")
-            tasks = []
-            for step in executable:
-                task = self._execute_workflow_step(step, completed, failed, context)
-                tasks.append(asyncio.create_task(task))
-                del pending[step["id"]]
+            # Group steps by parallel flag
+            parallel_steps = [s for s in executable if s.get("parallel", False)]
+            serial_steps = [s for s in executable if not s.get("parallel", False)]
 
-            await asyncio.gather(*tasks)
-            logger.debug(f"Completed batch: {[s['id'] for s in executable]}")
+            # Execute parallel steps first (if any)
+            if parallel_steps:
+                tasks = []
+                for step in parallel_steps:
+                    task = self._execute_workflow_step(step, completed, failed, context)
+                    tasks.append(asyncio.create_task(task))
+                    del pending[step["id"]]
+                
+                try:
+                    await asyncio.gather(*tasks)
+                    logger.debug(f"Completed parallel batch: {[s['id'] for s in parallel_steps]}")
+                except Exception as e:
+                    logger.error(f"Parallel step failed: {e}")
+
+            # Then execute serial steps
+            for step in serial_steps:
+                await self._execute_workflow_step(step, completed, failed, context)
+                del pending[step["id"]]
+                logger.debug(f"Completed serial step: {step['id']}")
 
         logger.debug(f"Workflow completed with {len(completed)} successful steps and {len(failed)} failures")
         return {"completed": completed, "failed": failed}
@@ -317,9 +342,12 @@ class Team:
             return
 
         try:
+            # Resolve input templates first
+            resolved_input = self._resolve_templates(step.get("input", {}), context)
+            
             # Add per-step timeout handling
             result = await asyncio.wait_for(
-                agent.execute_capability(step["task"], step.get("input", {})),
+                agent.execute_capability(step["task"], resolved_input),
                 timeout=step.get("timeout", 1.0)
             )
             completed[step_id] = result
