@@ -68,7 +68,7 @@ class Agent:
         try:
             # If capability is async function, await it
             if asyncio.iscoroutinefunction(capability):
-                result = await capability(**task.get("parameters", {}))
+                result = await self.execute_capability(task_type, task.get("parameters", {}))
             else:
                 # Run synchronous function in thread pool
                 loop = asyncio.get_running_loop()
@@ -81,6 +81,17 @@ class Agent:
             logger.error(f"Task execution failed: {e}")
             self.team.report_task_failure(self.agent_id, task, str(e))
             raise
+
+    async def execute_capability(self, task_name: str, input_data: Dict) -> Dict:
+        """Execute a capability with proper async handling"""
+        if task_name not in self.capabilities:
+            raise ValueError(f"Capability {task_name} not found")
+        
+        try:
+            result = await self.capabilities[task_name](**input_data)
+            return {"status": "completed", "result": result}
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
 
     async def request_help(self, task: Dict[str, Any], recipient_id: str):
         """Request help from another agent for a specific task"""
