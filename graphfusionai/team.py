@@ -172,12 +172,10 @@ class Team:
                 logger.error(f"Error auto-saving team {self.team_id}: {e}", exc_info=True)
 
     # -------------------------------------------------------------------------
-    # Workflow Execution
+    # Workflow Execution with Conditionals, Parallelism, and Templates
     # -------------------------------------------------------------------------
     async def execute_workflow(self, workflow: Dict, timeout: Optional[int] = None) -> Dict:
-        """
-        Execute a workflow with support for conditionals, parallelism, templates, and timeouts.
-        """
+        """Execute a workflow with support for conditionals, parallel steps, templates, and timeouts."""
         try:
             results = await asyncio.wait_for(
                 self._execute_workflow_internal(workflow),
@@ -199,8 +197,8 @@ class Team:
         completed, failed, context = {}, {}, {}
 
         while pending:
-            # Process conditionals
-            for step in [s for s in pending.values() if "when" in s]:
+            # Handle conditionals
+            for step in [s for s in list(pending.values()) if "when" in s]:
                 if all(dep in completed for dep in step.get("depends_on", [])):
                     condition_met = await self._evaluate_condition(step["when"], context)
                     branch_steps = step["then"] if condition_met else step.get("else", [])
@@ -210,17 +208,17 @@ class Team:
 
             # Executable steps
             executable = [
-                s for s in pending.values()
+                s for s in list(pending.values())
                 if all(dep in completed for dep in s.get("depends_on", []))
                 and "when" not in s
             ]
+
             if not executable:
                 if not any(s.get("depends_on") for s in pending.values()):
                     raise RuntimeError("Workflow deadlock - no executable steps")
                 await asyncio.sleep(0.1)
                 continue
 
-            # Parallel and serial
             parallel_steps = [s for s in executable if s.get("parallel", False)]
             serial_steps = [s for s in executable if not s.get("parallel", False)]
 
