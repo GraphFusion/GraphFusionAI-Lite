@@ -1,3 +1,11 @@
+    async def send_message(self, sender_id: str, recipient_id: str, content: Dict):
+        """Send a message from one agent to another within the team."""
+        logger.debug(f"Sending message from {sender_id} to {recipient_id}")
+        if recipient_id not in self.agents:
+            raise ValueError(f"Recipient agent {recipient_id} not found in team")
+        # Optionally, add to communication graph or log
+        self.graph_manager.add_communication(sender_id, recipient_id, content)
+        await self.agents[recipient_id].receive_message(sender_id, content)
 import threading
 import logging
 import time
@@ -6,6 +14,9 @@ from typing import Dict, List, Any, Optional
 from .agent import Agent
 from .graph_manager import GraphManager
 from .persistence import TeamStateDB, TeamState
+
+logger = logging.getLogger(__name__)
+
 
 logger = logging.getLogger(__name__)
 

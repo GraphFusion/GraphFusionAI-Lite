@@ -190,15 +190,17 @@ class Agent:
 
 # Example usage
 if __name__ == "__main__":
-    from graph_manager import GraphManager
-    from persistence import AgentStateDB
+    from graphfusionai.graph_manager import GraphManager
+    from graphfusionai.persistence import AgentStateDB
     
     gm = GraphManager("graph_data.json")
     state_db = AgentStateDB("agent_states.json")
-    agent1 = Agent("Agent1", "planner", {}, gm, state_db=state_db)
-    agent2 = Agent("Agent2", "executor", {}, gm, state_db=state_db)
-    asyncio.run(agent1.assign_to_team(None))  # Assign to a team
-    asyncio.run(agent2.assign_to_team(None))  # Assign to a team
+    from graphfusionai.team import Team
+    team = Team("Team1", gm)
+    agent1 = Agent("Agent1", "planner", {}, gm, team=team, state_db=state_db)
+    agent2 = Agent("Agent2", "executor", {}, gm, team=team, state_db=state_db)
+    asyncio.run(agent1.assign_to_team(team))  # Assign to a team
+    asyncio.run(agent2.assign_to_team(team))  # Assign to a team
     asyncio.run(agent1.send_message("Agent2", {"type": "help_request", "task": {"type": "data_processing"}}))
     asyncio.run(agent1.store_memory("task", "Optimize pipeline"))
     print(asyncio.run(agent1.recall_memory("task")))
